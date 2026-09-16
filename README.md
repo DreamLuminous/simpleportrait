@@ -2,7 +2,7 @@
 
 一个面向个人用户的本地优先证件照制作工具。它把“选照片、调整构图、抠像换背景、导出文件”整理成一条清晰流程，也把照片压缩、抠像换背景和修改图片尺寸拆成职责单一的小工具。
 
-> 当前版本：**v0.2.0 · Web/PWA 功能迭代版**
+> 当前版本：**v0.2.1 · Web/PWA 移动端适配修订版**
 > 制作者：**Luminous**
 > 开源仓库：[Gitee · luminousone/simpleportrait](https://gitee.com/luminousone/simpleportrait)
 > 联系邮箱：[Dreamluminous@163.com](mailto:Dreamluminous@163.com)
@@ -14,8 +14,11 @@
 
 首版优先完成 Web/PWA 体验，同时为微信小程序、iOS、Android、Windows、Linux 和 macOS 保留共享领域模型与平台适配边界。当前最适合使用的是桌面浏览器；移动端已经支持基础流程，但不同手机浏览器的相机、文件保存和触控行为仍会继续优化。
 
-## v0.2.0 已完成
+## v0.2.1 已完成
 
+- 主页主操作提升文字与底色对比度，能力摘要改为规格自定义、双模式编辑和本地优先。
+- 手机四步流程重做画布、参数区和底部导航分区，未上传照片时使用紧凑入口。
+- 平板专业模式改为连续两栏工作台，输出参数不再覆盖中央画布。
 - 证件照制作主流程：标准规格、上传/拍照入口、构图、背景、画面调整和导出。
 - 普通模式：面向大多数用户的四步流程，详细参数按逻辑分组折叠，手机上更容易操作。
 - 专业模式：单页深色工作台，规格、成像要求、画布、抠图、画面和输出同时可见。
@@ -170,13 +173,15 @@ npm run build:netlify
 - `0.2.0`：较大功能增强，例如更多平台适配、更稳定的图像处理和更完整的规格包。
 - `1.0.0`：核心流程、隐私说明、发布平台和主要兼容性达到稳定承诺后再考虑。
 
-当前版本 `v0.2.0` 对应 [CHANGELOG.md](CHANGELOG.md) 中的 Web/PWA 功能迭代版记录。建议以后每次准备公开更新时，先修改 `package.json` 版本号，再在 GitHub 或 Gitee 创建同名 Tag 和 Release。
+当前版本 `v0.2.1` 对应 [CHANGELOG.md](CHANGELOG.md) 中的 Web/PWA 移动端适配修订记录。建议以后每次准备公开更新时，先修改 `package.json` 版本号，再在 GitHub 或 Gitee 创建同名 Tag 和 Release。
 
 本版资料：
 
-- [v0.2.0 发布说明](docs/RELEASE_NOTES_v0.2.0.md)
-- [v0.2.0 GitHub / Gitee 更新指南](docs/GIT_RELEASE_GUIDE_v0.2.0.md)
+- [v0.2.1 发布说明](docs/RELEASE_NOTES_v0.2.1.md)
+- [v0.2.1 GitHub / Gitee 更新指南](docs/GIT_RELEASE_GUIDE_v0.2.1.md)
 - [完整技术文档](docs/TECHNICAL_DOCUMENTATION.md)
+- [Netlify 部署说明](docs/DEPLOY_NETLIFY.md)
+- [1Panel 静态网站部署说明](docs/DEPLOY_1PANEL.md)
 
 ## 参与贡献
 

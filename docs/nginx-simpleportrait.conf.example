@@ -1,4 +1,4 @@
-# SimplePortrait v0.2.0 static-site routing example
+# SimplePortrait v0.2.1 static-site routing example
 # Merge the location rules into the server block generated for the site.
 
 location / {

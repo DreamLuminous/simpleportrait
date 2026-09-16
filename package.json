@@ -1,6 +1,6 @@
 {
   "name": "simpleportrait",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SimplePortrait 简照：本地优先的证件照制作与图片工具",
   "private": true,
   "engines": {

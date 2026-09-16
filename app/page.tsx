@@ -400,7 +400,7 @@ function Landing({lang,setLang,playIntro,onStart}:{lang:Lang;setLang:(lang:Lang)
         <span className="hero-kicker"><LockKeyhole size={15}/>{t.privacy}</span>
         <h1>{t.introTitle}</h1><p>{t.introText}</p>
         <div className="hero-actions"><a className="start-button" href="/id-photo">{t.start}<ChevronRight size={19}/></a><a href="/tools">{isZh?"打开图片小工具":"Open image tools"}</a></div>
-        <div className="hero-facts"><span><b>192 × 144</b>{isZh?"默认采集像素":"Default pixels"}</span><span><b>48 × 33 mm</b>{isZh?"独立成像区":"Independent area"}</span><span><b>{isZh?"浏览器处理":"In-browser"}</b>{isZh?"当前版本不主动上传图片":"No active image upload in this version"}</span></div>
+        <div className="hero-facts"><span><b>{isZh?"规格可自定义":"Custom specifications"}</b>{isZh?"灵活调整像素、尺寸与构图":"Adjust pixels, dimensions and composition"}</span><span><b>{isZh?"双模式编辑":"Two editing modes"}</b>{isZh?"普通引导与专业工作台":"Guided flow and professional workbench"}</span><span><b>{isZh?"本地优先":"Local first"}</b>{isZh?"照片处理尽量在浏览器内完成":"Photo processing stays in your browser when possible"}</span></div>
       </div>
       <div className="hero-device" aria-label={isZh?"证件照构图示意":"ID photo composition preview"}>
         <div className="device-top"><span/><span/><span/></div><div className="device-photo"><i className="glow-orb"/><div className="person-silhouette"><span/><b/></div><em className="demo-line line-top">10%</em><em className="demo-line line-head">70%</em><em className="demo-line line-shoulder">20%</em><i className="demo-side side-a"/><i className="demo-side side-b"/></div>
