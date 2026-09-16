@@ -47,4 +47,7 @@ next-env.d.ts
 /.agents/
 /.codex/
 /outputs/
+
+# Local version snapshots; never publish the nested project copy.
+/ProjectGit/
 /work/

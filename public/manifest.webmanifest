@@ -1,1 +1,1 @@
-{"name":"简照｜证件照制作","short_name":"简照","description":"本机完成裁剪、换底、尺寸换算与证件照导出","start_url":"/","display":"standalone","background_color":"#f5f8f7","theme_color":"#18a77b","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{"name":"SimplePortrait 简照｜证件照制作","short_name":"SimplePortrait","description":"在浏览器中完成证件照裁剪、背景调整、尺寸换算与导出","start_url":"/","display":"standalone","background_color":"#f5f8f7","theme_color":"#18a77b","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

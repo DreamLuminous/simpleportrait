@@ -1,4 +1,4 @@
-# 简照 SimplePortrait · 第一阶段开发规划
+# SimplePortrait 简照 · 第一阶段开发规划
 
 > 目标：先把 Web 版证件照主流程做稳定、简单、可验收，再扩展小程序、App 和桌面端。
 

@@ -60,7 +60,10 @@ async function clickSpec(label) {
     return true;
   })()`);
   assert(result, `Spec not found: ${label}`);
-  await wait(300);
+  await retry(async () => {
+    const selected = await evaluate(`document.querySelector(".spec-card.selected b")?.textContent.trim()`);
+    if (selected !== label) throw new Error(`Waiting for selected spec: ${label}`);
+  });
 }
 async function uploadSyntheticPortrait() {
   const uploaded = await evaluate(`(async () => {
@@ -203,6 +206,10 @@ try {
   assert(state.rightTitle === "构图操作" && state.transform === null && state.gesture !== "none" && state.background === "none" && state.visibleDetails === 1, "Basic step 2 leaked obsolete movement controls or unrelated settings");
   assert(state.openDetails === 0 && !state.skipButton, "Basic step 2 contains expanded details or a skip button");
   assertNoOverlap([state.left, state.stage, state.right], "Basic step 2");
+  assert(await evaluate("Boolean(document.querySelector('.canvas-lock-toggle'))"), "Canvas lock control is missing");
+  await click("锁定照片");
+  assert(await evaluate("document.querySelector('.photo-frame').classList.contains('is-locked')"), "Canvas did not enter the locked state");
+  await click("解锁照片");
 
   await evaluate("window.scrollTo(0,120)");
   const insideScrollBefore = await evaluate("window.scrollY");
@@ -234,8 +241,8 @@ try {
   assert(!state.skipButton, "Basic step 3 still contains the obsolete skip button");
   const corner = await evaluate("Array.from(document.querySelector('.photo-frame canvas').getContext('2d').getImageData(0,0,1,1).data)");
   assert(Math.abs(corner[0]-216)<8 && Math.abs(corner[1]-240)<8 && Math.abs(corner[2]-255)<8 && corner[3]===255, `Integrated matting did not reveal the selected background: ${corner}`);
-  const mattingControls = await evaluate(`({modes:[...document.querySelectorAll('.background-mode-row.three button')].map(x=>x.textContent.trim()),compare:[...document.querySelectorAll('.matting-control-actions button')].map(x=>x.textContent.trim()),status:document.querySelector('.matting-inline-status')?.textContent})`);
-  assert(mattingControls.modes.length === 3 && mattingControls.compare.length === 2 && mattingControls.status.includes("抠图完成"), "ID-photo matting is missing controls from the standalone tool");
+  const mattingControls = await evaluate(`({modes:[...document.querySelectorAll('.background-mode-row.two button')].map(x=>x.textContent.trim()),compare:[...document.querySelectorAll('.matting-control-actions button')].map(x=>x.textContent.trim()),status:document.querySelector('.matting-inline-status')?.textContent})`);
+  assert(mattingControls.modes.length === 2 && !mattingControls.modes.includes("跳过处理") && mattingControls.compare.length === 2 && mattingControls.status.includes("抠图完成"), "ID-photo matting controls do not match the streamlined standalone tool");
   await evaluate("document.querySelector('[aria-label=\"透明背景\"]').click()");
   await retry(async()=>{const transparentFormat=await evaluate("document.querySelector('.output-controls select').value");if(transparentFormat!=="png")throw new Error("Transparent ID-photo background did not enforce PNG output")});
   assertNoOverlap([state.left, state.stage, state.right], "Basic step 3");
@@ -244,7 +251,7 @@ try {
   state = await snapshot();
   assert(state.step === 3 && state.rightTitle === "检查与保存" && state.basicDetails === "none", "Basic final step still repeats detailed settings");
   assert(state.output !== "none" && !state.transform && state.background === "none" && state.appearance === "none", "Basic final step leaked editing controls");
-  assert(state.selectedSpec === "一寸" && state.widthPx === 295 && !state.skipButton, "Basic flow lost data or retained a skip button");
+  assert(state.selectedSpec === "一寸" && state.widthPx === 295 && !state.skipButton, `Basic flow lost data or retained a skip button: ${JSON.stringify({selectedSpec:state.selectedSpec,widthPx:state.widthPx,skipButton:state.skipButton})}`);
   assert(state.colorPickerCount > 0, "ID-photo background controls are missing the colour picker");
   await evaluate(`(() => {
     const min = document.querySelector('[aria-label="minimum KB"]');
@@ -300,6 +307,8 @@ try {
   state = await snapshot();
   assert(state.offsetX !== beforeTouchX, "Single-finger mobile drag did not move the photo");
   assert(state.pageWidth <= state.viewportWidth, `Mobile Basic guide overflows horizontally: ${state.pageWidth}/${state.viewportWidth}`);
+  const mobileNav=await evaluate(`(()=>{const rect=document.querySelector(".wizard-nav").getBoundingClientRect();return{top:rect.top,bottom:rect.bottom,viewportHeight:window.visualViewport?.height||window.innerHeight}})()`);
+  assert(mobileNav.top>=0&&mobileNav.bottom<=mobileNav.viewportHeight+1, `Mobile wizard navigation is obscured: ${JSON.stringify(mobileNav)}`);
 
   await click("专业模式");
   state = await snapshot();

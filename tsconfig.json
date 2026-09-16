@@ -47,6 +47,7 @@
     ".next",
     ".vinext",
     "dist",
-    "out"
+    "out",
+    "ProjectGit"
   ]
 }

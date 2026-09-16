@@ -1,4 +1,4 @@
-# 简照 SimplePortrait · 第一阶段验收清单
+# SimplePortrait 简照 · v0.2.0 验收清单
 
 ## 核心流程
 
