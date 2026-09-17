@@ -29,6 +29,7 @@ const specs: Spec[] = [
 const colors = ["#d8f0ff", "#ffffff", "#4f9ef8", "#e84f5f", "#e8edf3"];
 const specNamesEn:Record<string,string>={cet46:"CET-4 / CET-6",one:"1-inch","small-one":"Small 1-inch",two:"2-inch",id:"National ID",passport:"Passport",exam:"Exam registration",driver:"Driving licence",social:"Social security card",square:"Square ID photo",custom:"Custom"};
 type Lang = "zh" | "en";
+type DeviceLayout = "phone" | "tablet-portrait" | "tablet-landscape" | "desktop";
 const copy = {
   zh: {
     product: "证件照制作", privacy: "图片编辑默认在浏览器内完成", history: "历史记录", settings: "设置",
@@ -52,7 +53,10 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const [playIntro, setPlayIntro] = useState(false);
   const [expertMode, setExpertMode] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
-  const workflow = expertMode ? "full" : "wizard";
+  const [deviceLayout, setDeviceLayout] = useState<DeviceLayout>("desktop");
+  const guidedOnly = deviceLayout === "phone" || deviceLayout === "tablet-portrait";
+  const effectiveExpertMode = guidedOnly ? false : expertMode;
+  const workflow = effectiveExpertMode ? "full" : "wizard";
   const [spec, setSpec] = useState(specs[0]);
   const [width, setWidth] = useState(specs[0].width);
   const [height, setHeight] = useState(specs[0].height);
@@ -94,12 +98,12 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const dragRef = useRef<{x:number;y:number;offsetX:number;offsetY:number}|null>(null);
   const pointersRef=useRef(new Map<number,{x:number;y:number}>());
   const pinchRef=useRef<{distance:number;zoom:number;midX:number;midY:number;offsetX:number;offsetY:number}|null>(null);
+  const expertPreferenceReady=useRef(false);
 
   useEffect(() => {
     const savedLang = localStorage.getItem("jianzhao-language");
     if (savedLang === "en") setLang("en");
-    const mobileDefault = window.matchMedia("(max-width: 760px)").matches;
-    setExpertMode(mobileDefault ? false : localStorage.getItem("jianzhao-expert-mode") === "1");
+    setExpertMode(localStorage.getItem("jianzhao-expert-mode") === "1");
     const hasPlayed = localStorage.getItem("jianzhao-intro-played") || sessionStorage.getItem("jianzhao-intro-played");
     if (!hasPlayed) {
       setPlayIntro(true);
@@ -114,9 +118,33 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
     localStorage.setItem("jianzhao-language", lang);
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   }, [lang]);
-  useEffect(() => { localStorage.setItem("jianzhao-expert-mode", expertMode ? "1" : "0"); }, [expertMode]);
+  useEffect(() => {
+    if (!expertPreferenceReady.current) {
+      expertPreferenceReady.current=true;
+      return;
+    }
+    if (!guidedOnly) localStorage.setItem("jianzhao-expert-mode", expertMode ? "1" : "0");
+  }, [expertMode, guidedOnly]);
   useEffect(()=>{
-    const updateViewport=()=>document.documentElement.style.setProperty("--app-viewport-height",`${Math.round(window.visualViewport?.height||window.innerHeight)}px`);
+    const updateViewport=()=>{
+      const viewportWidth=Math.round(window.visualViewport?.width||window.innerWidth);
+      const viewportHeight=Math.round(window.visualViewport?.height||window.innerHeight);
+      const shortSide=Math.min(viewportWidth,viewportHeight);
+      const longSide=Math.max(viewportWidth,viewportHeight);
+      const nextLayout:DeviceLayout=viewportWidth<=600||(shortSide<=500&&longSide<=950)
+        ?"phone"
+        :viewportWidth<=1100&&viewportHeight>=viewportWidth
+          ?"tablet-portrait"
+          :viewportWidth<=1280
+            ?"tablet-landscape"
+            :"desktop";
+      setDeviceLayout(nextLayout);
+      setExpertMode(nextLayout==="phone"||nextLayout==="tablet-portrait"
+        ?false
+        :localStorage.getItem("jianzhao-expert-mode")==="1");
+      document.documentElement.style.setProperty("--app-viewport-height",`${viewportHeight}px`);
+      document.documentElement.style.setProperty("--app-viewport-width",`${viewportWidth}px`);
+    };
     updateViewport();
     window.addEventListener("resize",updateViewport);
     window.addEventListener("orientationchange",updateViewport);
@@ -315,9 +343,9 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const t = copy[lang];
   if (view === "home") return <Landing lang={lang} setLang={setLang} playIntro={playIntro} onStart={()=>{setPlayIntro(false);setView("studio")}}/>;
 
-  const showLeftPanel = true;
-  const showStagePanel = expertMode || wizardStep >= 1;
-  const showRightPanel = expertMode || wizardStep >= 1;
+  const showLeftPanel = effectiveExpertMode || wizardStep === 0;
+  const showStagePanel = effectiveExpertMode || wizardStep === 1 || wizardStep === 2;
+  const showRightPanel = effectiveExpertMode || wizardStep >= 1;
   const replaceLeadingZero = (event:React.KeyboardEvent<HTMLElement>) => {
     const input=event.target as HTMLInputElement;
     if(input?.type!=="number"||input.value!=="0"||event.ctrlKey||event.metaKey||event.altKey)return;
@@ -329,28 +357,28 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   };
   const renderSpecCard = (item:Spec) => <button key={item.id} onClick={()=>chooseSpec(item)} className={"spec-card "+(item.id==="cet46"?"featured-spec ":"")+(spec.id===item.id?"selected":"")}><span className="paper-icon" style={{aspectRatio:item.width+"/"+item.height}}/><span><b>{lang==="zh"?item.name:specNamesEn[item.id]}</b><small>{item.id==="cet46"?(lang==="zh"?"浅蓝底 · JPG · 约 30 KB":"Light blue · JPG · about 30 KB"):item.width+" × "+item.height+"px"}</small></span>{item.id==="cet46"&&<em className="quick-badge">{lang==="zh"?"快捷":"PRESET"}</em>}{spec.id===item.id&&<Check className="spec-check" size={14}/>}</button>;
 
-  return <main className="app-shell" onKeyDownCapture={replaceLeadingZero}>
+  return <main className="app-shell" data-device-layout={deviceLayout} data-guided-only={guidedOnly?"true":"false"} onKeyDownCapture={replaceLeadingZero}>
     <header className="topbar">
       <button className="brand brand-button" onClick={()=>setView("home")} aria-label={t.back}><span className="brand-mark"><span /></span><span>SimplePortrait</span><span className="brand-tag">简照 · {t.product}</span></button>
       <div className="privacy-pill"><LockKeyhole size={15} /> {t.privacy}</div>
       <nav className="top-actions" aria-label="辅助功能">
         <label className="language-select compact-language"><Globe2 size={15}/><select aria-label={t.language} value={lang} onChange={e=>setLang(e.target.value as Lang)}><option value="zh">中文</option><option value="en">English</option></select></label>
-        <div className="mode-choice"><div className="mode-switch" role="group" aria-label={lang==="zh"?"制作模式":"Creation mode"}><button className={!expertMode?"active":""} onClick={()=>setExpertMode(false)}>{lang==="zh"?"普通模式":"Basic"}</button><button className={expertMode?"active":""} onClick={()=>setExpertMode(true)}>{lang==="zh"?"专业模式":"Pro"}</button></div></div>
+        {guidedOnly?<div className="guided-mode-lock" aria-label={lang==="zh"?"当前设备使用分步骤制作":"Guided workflow is enabled on this device"}><BookOpen size={15}/><span>{lang==="zh"?"分步骤制作":"Guided workflow"}</span></div>:<div className="mode-choice"><div className="mode-switch" role="group" aria-label={lang==="zh"?"制作模式":"Creation mode"}><button className={!expertMode?"active":""} onClick={()=>setExpertMode(false)}>{lang==="zh"?"普通模式":"Basic"}</button><button className={expertMode?"active":""} onClick={()=>setExpertMode(true)}>{lang==="zh"?"专业模式":"Pro"}</button></div></div>}
         <Dialog><DialogTrigger asChild><button className="quiet-button">{t.history}</button></DialogTrigger><HistoryDialog lang={lang} /></Dialog>
         <Dialog><DialogTrigger asChild><button className="settings-button" aria-label={t.settings}><SlidersHorizontal size={16}/> {t.settings}</button></DialogTrigger><SettingsDialog lang={lang} /></Dialog>
       </nav>
     </header>
-    {!expertMode&&<section className="progress-wrap basic-progress" aria-label={lang==="zh"?"制作进度":"Progress"}><div className="progress-line" />
-      {(lang==="zh"?["选择规格","上传与构图","背景与画面","检查与保存"]:["Choose size","Upload & compose","Background & look","Review & save"]).map((label,index)=><div className={`progress-step ${index===wizardStep?"active":""}`} key={label}><span>{index===0&&imageUrl?<Check size={14}/>:index+1}</span><b>{label}</b></div>)}
+    {!effectiveExpertMode&&<section className="progress-wrap basic-progress" aria-label={lang==="zh"?"制作进度":"Progress"}><div className="progress-line" />
+      {(lang==="zh"?["选择规格","上传与构图","抠图与背景","检查与保存"]:["Choose size","Upload & compose","Matting & background","Review & save"]).map((label,index)=><div className={`progress-step ${index===wizardStep?"active":""}`} key={label}><span>{index===0&&imageUrl?<Check size={14}/>:index+1}</span><b>{label}</b></div>)}
     </section>}
-    <section className="workspace" data-editor-mode={expertMode?"professional":"basic"} data-workflow={workflow} data-step={wizardStep}>
-      {expertMode&&<div className="pro-workbench-head"><div><span className="eyebrow">PRO WORKBENCH</span><h1>{lang==="zh"?"专业证件照工作台":"Professional ID photo workbench"}</h1></div><p>{lang==="zh"?"规格、精确构图、抠图、画面和输出参数在同一工作台内完整显示。":"Spec, composition, matting, appearance and export controls are all visible in one workbench."}</p></div>}
+    <section className="workspace" data-editor-mode={effectiveExpertMode?"professional":"basic"} data-workflow={workflow} data-step={wizardStep}>
+      {effectiveExpertMode&&<div className="pro-workbench-head"><div><span className="eyebrow">PRO WORKBENCH</span><h1>{lang==="zh"?"专业证件照工作台":"Professional ID photo workbench"}</h1></div><p>{lang==="zh"?"规格、精确构图、抠图、画面和输出参数在同一工作台内完整显示。":"Spec, composition, matting, appearance and export controls are all visible in one workbench."}</p></div>}
       <aside className="panel left-panel" hidden={!showLeftPanel} aria-hidden={!showLeftPanel}>
-        <div className="panel-heading"><div><span className="eyebrow">{expertMode?"SPEC & COMPOSITION":"STEP 01"}</span><h1>{expertMode?(lang==="zh"?"规格与成像要求":"Spec & composition"):(lang==="zh"?"选择照片规格":"Choose a photo size")}</h1></div></div>
+        <div className="panel-heading"><div><span className="eyebrow">{effectiveExpertMode?"SPEC & COMPOSITION":"STEP 01"}</span><h1>{effectiveExpertMode?(lang==="zh"?"规格与成像要求":"Spec & composition"):(lang==="zh"?"选择照片规格":"Choose a photo size")}</h1></div></div>
         <div className="spec-settings-group"><div className="spec-grid">{specs.slice(0,4).map(renderSpecCard)}</div><details className="spec-library"><summary><span>{lang==="zh"?"更多证件照模板":"More ID photo templates"}</span><em>{specs.slice(4).some(item=>item.id===spec.id)?(lang==="zh"?spec.name:specNamesEn[spec.id]):(lang==="zh"?(specs.length-4)+" 个模板":(specs.length-4)+" templates")}</em></summary><div className="spec-grid more-spec-grid">{specs.slice(4).map(renderSpecCard)}</div></details>
         {spec.id==="cet46"&&<div className="cet-preset-card"><div><b>{lang==="zh"?"四六级快捷设置":"CET-4 / CET-6 quick preset"}</b><span>{lang==="zh"?"推荐值，均可继续修改":"Recommended values · all editable"}</span></div><dl><div><dt>{lang==="zh"?"背景":"Background"}</dt><dd><i/> {lang==="zh"?"浅蓝色":"Light blue"}</dd></div><div><dt>{lang==="zh"?"采集":"Pixels"}</dt><dd>{lang==="zh"?"高 192 × 宽 144 px":"H 192 × W 144 px"}</dd></div><div><dt>{lang==="zh"?"成像区":"Area"}</dt><dd>{lang==="zh"?"高 48 × 宽 33 mm":"H 48 × W 33 mm"}</dd></div><div><dt>{lang==="zh"?"构图":"Composition"}</dt><dd>10% / 70% / 20% · {lang==="zh"?"左右 10%":"Sides 10%"}</dd></div><div><dt>{lang==="zh"?"输出":"Output"}</dt><dd>推荐 JPG · 25—35 KB</dd></div></dl></div>}
         <div className="section-rule"/><label className="field-label expert-only">{lang==="zh"?"采集图像大小":"Captured image"} <em>{lang==="zh"?"高 × 宽":"H × W"}</em></label>
-        {!expertMode&&<label className="size-link-toggle basic-size-link"><input type="checkbox" checked={sizeLinked} onChange={e=>toggleSizeLink(e.target.checked)}/><span><b>{lang==="zh"?"联动像素、成像区与 DPI":"Link PX, area and DPI"}</b><small>{lang==="zh"?"开启后修改任一尺寸会自动换算":"Automatically convert dimensions when enabled"}</small></span></label>}
+        {!effectiveExpertMode&&<label className="size-link-toggle basic-size-link"><input type="checkbox" checked={sizeLinked} onChange={e=>toggleSizeLink(e.target.checked)}/><span><b>{lang==="zh"?"联动像素、成像区与 DPI":"Link PX, area and DPI"}</b><small>{lang==="zh"?"开启后修改任一尺寸会自动换算":"Automatically convert dimensions when enabled"}</small></span></label>}
         <div className="dimension-row expert-only"><label><span>高度</span><input aria-label="采集图像高度 PX" value={height} min={64} max={6000} type="number" onChange={e=>updatePixelHeight(numberFromInput(e.target.value))}/></label><span className="times">×</span><label><span>宽度</span><input aria-label="采集图像宽度 PX" value={width} min={64} max={6000} type="number" onChange={e=>updatePixelWidth(numberFromInput(e.target.value))}/></label><span className="unit">PX</span></div>
         <label className="field-label independent-label expert-only">{lang==="zh"?"成像区大小":"Imaging area"} <em>{sizeLinked?(lang==="zh"?"已与 PX、DPI 联动":"Linked to PX and DPI"):(lang==="zh"?"独立设置，不与 PX 联动":"Independent from PX")}</em></label>
         <div className="dimension-row expert-only"><label><span>高度</span><input aria-label="成像区高度 mm" value={areaHeightMm} min={5} max={500} step="0.1" type="number" onChange={e=>updateAreaHeight(numberFromInput(e.target.value))}/></label><span className="times">×</span><label><span>宽度</span><input aria-label="成像区宽度 mm" value={areaWidthMm} min={5} max={500} step="0.1" type="number" onChange={e=>updateAreaWidth(numberFromInput(e.target.value))}/></label><span className="unit">MM</span></div>
@@ -372,7 +400,7 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
         <div className="stage-status"><span><ShieldCheck size={15}/> {status}</span><button onClick={()=>fileRef.current?.click()}><FileImage size={15}/>{lang==="zh"?"更换照片":"Replace photo"}</button></div>
       </section>
       <aside className="panel right-panel" hidden={!showRightPanel} aria-hidden={!showRightPanel}>
-        <div className="panel-heading"><div><span className="eyebrow">{expertMode?(lang==="zh"?"完整参数":"ALL CONTROLS"):(lang==="zh"?`第 ${wizardStep+1} 步设置`:`STEP ${wizardStep+1}`)}</span><h2>{expertMode?(lang==="zh"?"调整与输出":"Adjust & export"):(['',lang==="zh"?"构图操作":"Composition",lang==="zh"?"背景与画面":"Background & look",lang==="zh"?"检查与保存":"Review & save"][wizardStep])}</h2></div><Sparkles size={20} className="sparkle"/></div>
+        <div className="panel-heading"><div><span className="eyebrow">{effectiveExpertMode?(lang==="zh"?"完整参数":"ALL CONTROLS"):(lang==="zh"?`第 ${wizardStep+1} 步设置`:`STEP ${wizardStep+1}`)}</span><h2>{effectiveExpertMode?(lang==="zh"?"调整与输出":"Adjust & export"):(['',lang==="zh"?"构图操作":"Composition",lang==="zh"?"抠图与背景":"Matting & background",lang==="zh"?"检查与保存":"Review & save"][wizardStep])}</h2></div><Sparkles size={20} className="sparkle"/></div>
         <div className="control-group background-control"><div className="control-label"><b>{lang==="zh"?"抠图与背景":"Matting & background"}</b><span>{mattingProcessing?(lang==="zh"?"处理中":"Processing"):mattingMode==="remove"?(lang==="zh"?"自动抠图":"Auto remove"):(lang==="zh"?"保留原背景":"Original")}</span></div><div className="background-mode-row two"><button className={mattingMode==="remove"?"active":""} onClick={()=>{setMattingMode("remove");setMattingPreviewOriginal(false)}}>{lang==="zh"?"自动抠图":"Auto"}</button><button className={mattingMode==="keep"?"active":""} onClick={()=>{setMattingMode("keep");setMattingPreviewOriginal(false)}}>{lang==="zh"?"保留原背景":"Keep"}</button></div>{mattingMode==="remove"&&<><div className="color-row">{colors.map(color=><button key={color} onClick={()=>setBackground(color)} aria-label={`${lang==="zh"?"背景":"Background"} ${color}`} className={background===color?"active":""} style={{background:color}}/>)}<label className="eyedropper-button" onClick={()=>setMattingPreviewOriginal(true)}><Pipette size={14}/><span>{lang==="zh"?"取色器":"Color picker"}</span><input type="color" value={background==="transparent"?"#ffffff":background} onChange={e=>setBackground(e.target.value)}/></label><button className={`transparent ${background==="transparent"?"active":""}`} onClick={()=>{setBackground("transparent");setFormat("png")}} aria-label={lang==="zh"?"透明背景":"Transparent background"}/></div><div className="control-label second"><b>{lang==="zh"?"背景识别范围":"Detection range"}</b><span>{mattingTolerance}</span></div><Slider value={[mattingTolerance]} min={12} max={180} step={1} onValueChange={v=>setMattingTolerance(v[0])}/><small className="range-tip">{lang==="zh"?"残留背景多就调高；人物被误删就调低":"Raise for leftovers; lower if the subject is removed"}</small><div className="control-label second"><b>{lang==="zh"?"边缘柔化":"Edge feather"}</b><span>{mattingFeather}</span></div><Slider value={[mattingFeather]} min={0} max={72} step={1} onValueChange={v=>setMattingFeather(v[0])}/><div className={`matting-inline-status ${mattingProcessing?"is-processing":""}`}>{mattingProcessing&&<span className="mini-spinner"/>}{mattingStatus}</div><div className="matting-control-actions"><button onClick={()=>setMattingPreviewOriginal(value=>!value)}>{mattingPreviewOriginal?(lang==="zh"?"查看抠图结果":"Show result"):(lang==="zh"?"对比原图":"Compare original")}</button><button onClick={()=>setMattingRevision(value=>value+1)}><RotateCw size={14}/>{lang==="zh"?"重新处理":"Reprocess"}</button></div></>}</div>
         {expertMode?<div className="control-group transform-control"><div className="control-label"><b>{lang==="zh"?"精确构图":"Precise composition"}</b><span>{lang==="zh"?"与画布操作同步":"Synced with canvas"}</span></div><div className="transform-fields"><label>{lang==="zh"?"缩放":"Zoom"}<span><input type="number" min="50" max="300" value={zoom} onChange={e=>setZoom(Math.max(50,Math.min(300,numberFromInput(e.target.value))))}/><b>%</b></span></label><label>X<span><input type="number" step="0.01" value={Number(offsetX.toFixed(2))} onChange={e=>setOffsetX(numberFromInput(e.target.value))}/></span></label><label>Y<span><input type="number" step="0.01" value={Number(offsetY.toFixed(2))} onChange={e=>setOffsetY(numberFromInput(e.target.value))}/></span></label><label>{lang==="zh"?"旋转":"Rotate"}<span><input type="number" min="-15" max="15" value={rotation} onChange={e=>setRotation(numberFromInput(e.target.value))}/><b>°</b></span></label></div></div>:wizardStep===1?<div className="gesture-card"><Move size={20}/><div><b>{lang==="zh"?"直接在照片上调整":"Adjust directly on the photo"}</b><span>{lang==="zh"?"电脑在画面内拖动、滚轮缩放；画面外正常滚动页面。手机单指拖动、双指缩放。":"Drag and wheel inside the photo on desktop. Drag with one finger and pinch with two on mobile."}</span></div></div>:null}
         <div className="control-group appearance-control"><div className="control-label"><b>{lang==="zh"?"画面亮度":"Brightness"}</b><span>{brightness}%</span></div><Slider value={[brightness]} min={70} max={140} step={1} onValueChange={v=>setBrightness(v[0])}/><div className="control-label second"><b>{lang==="zh"?"对比度":"Contrast"}</b><span>{contrast}%</span></div><Slider value={[contrast]} min={70} max={140} step={1} onValueChange={v=>setContrast(v[0])}/></div>

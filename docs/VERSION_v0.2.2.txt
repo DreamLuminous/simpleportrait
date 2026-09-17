@@ -1,0 +1,8 @@
+SimplePortrait 简照
+Version: 0.2.2
+Tag: v0.2.2
+Release date: 2026-09-17
+Release type: Web / PWA device-layout compatibility revision
+Maintainer: Luminous
+Repository: https://gitee.com/luminousone/simpleportrait
+Contact: Dreamluminous@163.com

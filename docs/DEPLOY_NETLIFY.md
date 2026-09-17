@@ -1,6 +1,6 @@
 # Netlify 手动上传说明
 
-对应版本：SimplePortrait 简照 v0.2.1
+对应版本：SimplePortrait 简照 v0.2.2
 
 ## 直接上传
 

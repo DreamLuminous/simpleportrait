@@ -62,7 +62,7 @@ async function clickSpec(label) {
   assert(result, `Spec not found: ${label}`);
   await retry(async () => {
     const selected = await evaluate(`document.querySelector(".spec-card.selected b")?.textContent.trim()`);
-    if (selected !== label) throw new Error(`Waiting for selected spec: ${label}`);
+    if (selected !== label) throw new Error(`Waiting for selected spec: ${label}; current: ${selected}`);
   });
 }
 async function uploadSyntheticPortrait() {
@@ -102,6 +102,9 @@ async function snapshot() {
       return element ? getComputedStyle(element).display : null;
     };
     return {
+      deviceLayout: document.querySelector(".app-shell")?.dataset.deviceLayout,
+      guidedOnly: document.querySelector(".app-shell")?.dataset.guidedOnly === "true",
+      guidedLock: Boolean(document.querySelector(".guided-mode-lock")),
       mode: workspace?.dataset.editorMode,
       workflow: workspace?.dataset.workflow,
       step: Number(workspace?.dataset.step),
@@ -178,6 +181,7 @@ try {
     socket.addEventListener("error", reject, { once: true });
   });
   await command("Runtime.enable");
+  await command("Emulation.setDeviceMetricsOverride", { width:1440, height:900, deviceScaleFactor:1, mobile:false });
   await retry(async () => {
     const ready = await evaluate("Boolean(document.querySelector('.workspace'))");
     if (!ready) throw new Error("App is not ready");
@@ -202,8 +206,8 @@ try {
   await click("下一步 →");
   await uploadSyntheticPortrait();
   state = await snapshot();
-  assert(state.step === 1 && visible(state.left) && visible(state.stage) && visible(state.right), "Basic step 2 must show canvas, gesture help and its details");
-  assert(state.rightTitle === "构图操作" && state.transform === null && state.gesture !== "none" && state.background === "none" && state.visibleDetails === 1, "Basic step 2 leaked obsolete movement controls or unrelated settings");
+  assert(state.step === 1 && hidden(state.left) && visible(state.stage) && visible(state.right), "Basic step 2 must show only canvas and gesture help");
+  assert(state.rightTitle === "构图操作" && state.transform === null && state.gesture !== "none" && state.background === "none", "Basic step 2 leaked obsolete movement controls or unrelated settings");
   assert(state.openDetails === 0 && !state.skipButton, "Basic step 2 contains expanded details or a skip button");
   assertNoOverlap([state.left, state.stage, state.right], "Basic step 2");
   assert(await evaluate("Boolean(document.querySelector('.canvas-lock-toggle'))"), "Canvas lock control is missing");
@@ -236,7 +240,7 @@ try {
 
   await click("下一步 →");
   state = await snapshot();
-  assert(state.step === 2 && state.rightTitle === "背景与画面" && state.basicDetails === "none", "Basic step 3 content or details are wrong");
+  assert(state.step === 2 && state.rightTitle === "抠图与背景" && state.basicDetails === "none", "Basic step 3 content or details are wrong");
   assert(state.background !== "none" && state.appearance !== "none" && !state.transform && state.output === "none", "Basic step 3 leaked unrelated controls");
   assert(!state.skipButton, "Basic step 3 still contains the obsolete skip button");
   const corner = await evaluate("Array.from(document.querySelector('.photo-frame canvas').getContext('2d').getImageData(0,0,1,1).data)");
@@ -250,6 +254,7 @@ try {
   await click("下一步 →");
   state = await snapshot();
   assert(state.step === 3 && state.rightTitle === "检查与保存" && state.basicDetails === "none", "Basic final step still repeats detailed settings");
+  assert(hidden(state.stage) && hidden(state.left) && visible(state.right), "Basic final step must be export-only without the photo preview");
   assert(state.output !== "none" && !state.transform && state.background === "none" && state.appearance === "none", "Basic final step leaked editing controls");
   assert(state.selectedSpec === "一寸" && state.widthPx === 295 && !state.skipButton, `Basic flow lost data or retained a skip button: ${JSON.stringify({selectedSpec:state.selectedSpec,widthPx:state.widthPx,skipButton:state.skipButton})}`);
   assert(state.colorPickerCount > 0, "ID-photo background controls are missing the colour picker");
@@ -310,15 +315,38 @@ try {
   const mobileNav=await evaluate(`(()=>{const rect=document.querySelector(".wizard-nav").getBoundingClientRect();return{top:rect.top,bottom:rect.bottom,viewportHeight:window.visualViewport?.height||window.innerHeight}})()`);
   assert(mobileNav.top>=0&&mobileNav.bottom<=mobileNav.viewportHeight+1, `Mobile wizard navigation is obscured: ${JSON.stringify(mobileNav)}`);
 
+  assert(state.deviceLayout === "phone" && state.guidedOnly && state.guidedLock, "Phone is not locked to the guided workflow");
+  const mobileModeButtons = await evaluate("document.querySelectorAll('.mode-choice button').length");
+  assert(mobileModeButtons === 0 && state.mode === "basic" && state.workflow === "wizard", "Phone still exposes another editor mode");
+
+  await command("Emulation.setDeviceMetricsOverride", { width:834, height:1112, deviceScaleFactor:2, mobile:true });
+  await wait(350);
+  state = await snapshot();
+  assert(state.deviceLayout === "tablet-portrait" && state.guidedOnly && state.guidedLock, "Portrait tablet is not using its dedicated guided layout");
+  assert(state.mode === "basic" && state.workflow === "wizard" && state.pageWidth <= state.viewportWidth, "Portrait tablet overflows or exposes Professional mode");
+  assertNoOverlap([state.left, state.stage, state.right], "Portrait tablet guided layout");
+  const portraitNav=await evaluate(`(()=>{const r=document.querySelector(".wizard-nav").getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:window.visualViewport?.height||window.innerHeight}})()`);
+  assert(portraitNav.top>=0&&portraitNav.bottom<=portraitNav.height+1, `Portrait tablet navigation is obscured: ${JSON.stringify(portraitNav)}`);
+
+  await command("Emulation.setDeviceMetricsOverride", { width:1112, height:834, deviceScaleFactor:1.5, mobile:true });
+  await wait(350);
+  state = await snapshot();
+  assert(state.deviceLayout === "tablet-landscape" && !state.guidedOnly && !state.guidedLock, "Landscape tablet did not restore the wide-mode controls");
+  assert(state.pageWidth <= state.viewportWidth, `Landscape tablet overflows horizontally: ${state.pageWidth}/${state.viewportWidth}`);
+  assertNoOverlap([state.left, state.stage, state.right], "Landscape tablet two-column guide");
   await click("专业模式");
   state = await snapshot();
-  assert(state.mode === "professional" && state.workflow === "full" && state.proHead && !state.progress && !state.proNav, "Mobile Professional is not the single complete workbench");
-  assert(state.pageWidth <= state.viewportWidth, `Mobile Professional workbench overflows horizontally: ${state.pageWidth}/${state.viewportWidth}`);
-  assert(visible(state.left) && visible(state.stage) && visible(state.right), "Mobile Professional does not show all workbench sections");
-  assertNoOverlap([state.left, state.stage, state.right], "Mobile Professional complete workbench");
-  assert(state.selectedSpec === "一寸" && state.widthPx === 295, "Shared session data was lost on mobile mode switch");
+  assert(state.mode === "professional" && state.workflow === "full", "Landscape tablet cannot enable the Professional workbench");
+  assertNoOverlap([state.left, state.stage, state.right], "Landscape tablet Professional workbench");
 
-  console.log("Editor UX browser test passed: scoped Basic steps, unified Professional workbench, integrated matting, mouse wheel/drag, and mobile touch gestures.");
+  await command("Emulation.setDeviceMetricsOverride", { width:1440, height:900, deviceScaleFactor:1, mobile:false });
+  await wait(350);
+  state = await snapshot();
+  assert(state.deviceLayout === "desktop" && state.mode === "professional", "Desktop did not retain the complete workbench");
+  assert(state.pageWidth <= state.viewportWidth, `Desktop workbench overflows horizontally: ${state.pageWidth}/${state.viewportWidth}`);
+  assertNoOverlap([state.left, state.stage, state.right], "Desktop complete workbench");
+
+  console.log("Editor UX browser test passed: desktop, phone, portrait tablet and landscape tablet layouts; guided lock; export-only final step; matting canvas; mouse and touch interactions.");
 } finally {
   try { socket?.close(); } catch {}
   browser.kill();

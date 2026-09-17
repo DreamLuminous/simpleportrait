@@ -1,6 +1,6 @@
 # 1Panel 静态网站部署说明
 
-对应版本：SimplePortrait 简照 v0.2.1
+对应版本：SimplePortrait 简照 v0.2.2
 
 ## 使用范围
 
