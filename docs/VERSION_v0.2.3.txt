@@ -1,0 +1,9 @@
+SimplePortrait 简照
+Version: 0.2.3
+Tag: v0.2.3
+Release date: 2026-09-18
+Release type: Web/PWA source and 1Panel static package
+Merged scope: file safety, guided export, mobile canvas consistency, external canvas lock, portrait-tablet refinement
+Maintainer: Luminous
+Netlify: paused at v0.2.2
+GitHub project website/preview: frozen at v0.2.2

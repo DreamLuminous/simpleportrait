@@ -12,6 +12,27 @@ const numberFromInput = (raw:string) => {
   return normalized === "" || normalized === "-" ? 0 : Number(normalized);
 };
 
+type FileSizeUnit = "KB" | "MB";
+const MAX_UPLOAD_MB = 30;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const MAX_IMAGE_EDGE = 12000;
+const MAX_IMAGE_PIXELS = 30_000_000;
+const MAX_TARGET_MB = 20;
+const MAX_TARGET_KB = MAX_TARGET_MB * 1024;
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const targetSizeToInput = (kb:number, unit:FileSizeUnit) => unit === "MB" ? Number((kb / 1024).toFixed(3)) : kb;
+const targetSizeFromInput = (value:number, unit:FileSizeUnit) => Math.max(1, Math.min(MAX_TARGET_KB, Math.round((value || (unit === "MB" ? .001 : 1)) * (unit === "MB" ? 1024 : 1))));
+const formatTargetSize = (kb:number, unit:FileSizeUnit) => targetSizeToInput(kb, unit).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const imageUploadError = (file:File, lang:Lang) => {
+  if (!allowedImageTypes.has(file.type)) return lang === "zh" ? "请选择 JPEG、PNG 或 WebP 图片" : "Choose a JPEG, PNG or WebP image";
+  if (file.size > MAX_UPLOAD_BYTES) return lang === "zh" ? `图片不能超过 ${MAX_UPLOAD_MB} MB，请先压缩后再上传` : `Images must be no larger than ${MAX_UPLOAD_MB} MB`;
+  return "";
+};
+const imageDimensionsError = (width:number, height:number, lang:Lang) => {
+  if (width > MAX_IMAGE_EDGE || height > MAX_IMAGE_EDGE || width * height > MAX_IMAGE_PIXELS) return lang === "zh" ? "图片像素过大，请先缩小到 3000 万像素以内，且最长边不超过 12000 px" : "Image dimensions are too large. Use no more than 30 megapixels and 12000 px on the longest edge";
+  return "";
+};
+
 type Spec = { id: string; name: string; width: number; height: number; mm: string };
 const specs: Spec[] = [
   { id: "cet46", name: "四六级默认照片", width: 144, height: 192, mm: "成像区 33 × 48 mm" },
@@ -54,7 +75,7 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const [expertMode, setExpertMode] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [deviceLayout, setDeviceLayout] = useState<DeviceLayout>("desktop");
-  const guidedOnly = deviceLayout === "phone" || deviceLayout === "tablet-portrait";
+  const guidedOnly = deviceLayout === "phone";
   const effectiveExpertMode = guidedOnly ? false : expertMode;
   const workflow = effectiveExpertMode ? "full" : "wizard";
   const [spec, setSpec] = useState(specs[0]);
@@ -85,6 +106,7 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const [filename, setFilename] = useState("");
   const [minSizeKb, setMinSizeKb] = useState(25);
   const [maxSizeKb, setMaxSizeKb] = useState(35);
+  const [sizeUnit, setSizeUnit] = useState<FileSizeUnit>("KB");
   const [headTop, setHeadTop] = useState(10);
   const [eyeLine, setEyeLine] = useState(35);
   const [headRegion, setHeadRegion] = useState(70);
@@ -92,9 +114,9 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   const [sideSpace, setSideSpace] = useState(10);
   const [status, setStatus] = useState("等待选择照片");
   const [canvasLocked, setCanvasLocked] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{x:number;y:number;offsetX:number;offsetY:number}|null>(null);
   const pointersRef=useRef(new Map<number,{x:number;y:number}>());
   const pinchRef=useRef<{distance:number;zoom:number;midX:number;midY:number;offsetX:number;offsetY:number}|null>(null);
@@ -131,7 +153,9 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
       const viewportHeight=Math.round(window.visualViewport?.height||window.innerHeight);
       const shortSide=Math.min(viewportWidth,viewportHeight);
       const longSide=Math.max(viewportWidth,viewportHeight);
-      const nextLayout:DeviceLayout=viewportWidth<=600||(shortSide<=500&&longSide<=950)
+      const coarsePointer=window.matchMedia("(pointer: coarse)").matches;
+      const mobileUserAgent=/iPhone|iPod|Android.+Mobile|Windows Phone|webOS/i.test(navigator.userAgent);
+      const nextLayout:DeviceLayout=viewportWidth<=700||(shortSide<=540&&longSide<=1024)||(coarsePointer&&mobileUserAgent&&shortSide<=700)
         ?"phone"
         :viewportWidth<=1100&&viewportHeight>=viewportWidth
           ?"tablet-portrait"
@@ -139,7 +163,7 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
             ?"tablet-landscape"
             :"desktop";
       setDeviceLayout(nextLayout);
-      setExpertMode(nextLayout==="phone"||nextLayout==="tablet-portrait"
+      setExpertMode(nextLayout==="phone"
         ?false
         :localStorage.getItem("jianzhao-expert-mode")==="1");
       document.documentElement.style.setProperty("--app-viewport-height",`${viewportHeight}px`);
@@ -174,13 +198,16 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
       setStatus(lang==="zh"?"已应用四六级推荐设置，所有参数均可继续修改":"CET-4 / CET-6 recommendations applied · every setting remains editable");
     }else if(!filename){setFilename("证件照_{规格}_{日期}")}
   };
-  const updatePixelWidth = (value:number) => { setWidth(value); if(sizeLinked&&dpi>0) setAreaWidthMm(Number(pixelsToMm(value,dpi).toFixed(2))); };
-  const updatePixelHeight = (value:number) => { setHeight(value); if(sizeLinked&&dpi>0) setAreaHeightMm(Number(pixelsToMm(value,dpi).toFixed(2))); };
-  const updateAreaWidth = (value:number) => { setAreaWidthMm(value); if(sizeLinked&&dpi>0) setWidth(mmToPixels(value,dpi)); };
-  const updateAreaHeight = (value:number) => { setAreaHeightMm(value); if(sizeLinked&&dpi>0) setHeight(mmToPixels(value,dpi)); };
+  const safePhotoPixels = (value:number) => Math.max(64, Math.min(6000, Math.round(value || 64)));
+  const safePhotoMillimetres = (value:number) => Math.max(5, Math.min(500, value || 5));
+  const updatePixelWidth = (value:number) => { const next=safePhotoPixels(value);setWidth(next);if(sizeLinked&&dpi>0)setAreaWidthMm(Number(pixelsToMm(next,dpi).toFixed(2))); };
+  const updatePixelHeight = (value:number) => { const next=safePhotoPixels(value);setHeight(next);if(sizeLinked&&dpi>0)setAreaHeightMm(Number(pixelsToMm(next,dpi).toFixed(2))); };
+  const updateAreaWidth = (value:number) => { const next=safePhotoMillimetres(value);if(sizeLinked&&dpi>0){const pixels=safePhotoPixels(mmToPixels(next,dpi));setWidth(pixels);setAreaWidthMm(Number(pixelsToMm(pixels,dpi).toFixed(2)))}else setAreaWidthMm(next); };
+  const updateAreaHeight = (value:number) => { const next=safePhotoMillimetres(value);if(sizeLinked&&dpi>0){const pixels=safePhotoPixels(mmToPixels(next,dpi));setHeight(pixels);setAreaHeightMm(Number(pixelsToMm(pixels,dpi).toFixed(2)))}else setAreaHeightMm(next); };
   const updateResolution = (value:number) => {
-    setDpi(value);
-    if(sizeLinked&&value>0){setAreaWidthMm(Number(pixelsToMm(width,value).toFixed(2)));setAreaHeightMm(Number(pixelsToMm(height,value).toFixed(2)))}
+    const next=Math.max(72,Math.min(600,Math.round(value||72)));
+    setDpi(next);
+    if(sizeLinked){setAreaWidthMm(Number(pixelsToMm(width,next).toFixed(2)));setAreaHeightMm(Number(pixelsToMm(height,next).toFixed(2)))}
   };
   const toggleSizeLink = (linked:boolean) => {
     setSizeLinked(linked);
@@ -189,14 +216,22 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   };
   const pickImage = (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setStatus(lang==="zh"?"请选择 JPEG、PNG 或 WebP 图片":"Choose a JPEG, PNG or WebP image"); return; }
+    const uploadError = imageUploadError(file, lang);
+    if (uploadError) { setStatus(uploadError); return; }
     const url = URL.createObjectURL(file);
-    setImageUrl((old) => { if (old) URL.revokeObjectURL(old); return url; });
-    setMattedUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
-    setMattingPreviewOriginal(false);
-    setCanvasLocked(false);
-    setOffsetX(0); setOffsetY(0); setZoom(100); setRotation(0);
-    setStatus(lang==="zh"?"照片已载入，可继续调整":"Photo loaded · ready to adjust");
+    const probe = new Image();
+    probe.onload = () => {
+      const dimensionsError = imageDimensionsError(probe.naturalWidth, probe.naturalHeight, lang);
+      if (dimensionsError) { URL.revokeObjectURL(url); setStatus(dimensionsError); return; }
+      setImageUrl((old) => { if (old) URL.revokeObjectURL(old); return url; });
+      setMattedUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
+      setMattingPreviewOriginal(false);
+      setCanvasLocked(false);
+      setOffsetX(0); setOffsetY(0); setZoom(100); setRotation(0);
+      setStatus(lang==="zh"?"照片已载入，可继续调整":"Photo loaded · ready to adjust");
+    };
+    probe.onerror = () => { URL.revokeObjectURL(url); setStatus(lang==="zh"?"照片读取失败，请换一张照片":"Could not read this image"); };
+    probe.src = url;
   };
 
   useEffect(() => {
@@ -303,7 +338,7 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
     if (!canvas || !imageUrl) { setStatus(lang==="zh"?"请先选择一张照片":"Choose a photo first"); return; }
     const link = document.createElement("a");
     const safeName = buildFilename(filename || "证件照_{规格}_{日期}", { spec: spec.name, width, height, background });
-    if (minSizeKb > maxSizeKb) { setStatus(lang==="zh"?"文件大小下限不能大于上限":"Minimum file size cannot exceed maximum"); return; }
+    if (minSizeKb >= maxSizeKb) { setStatus(lang==="zh"?"文件大小下限必须小于上限":"Minimum file size must be lower than maximum"); return; }
     const result = await canvasToTargetBlob(canvas, format, quality, minSizeKb, maxSizeKb);
     link.download = `${safeName}.${format === "jpeg" ? "jpg" : format}`;
     link.href = URL.createObjectURL(result.blob); link.click(); setTimeout(()=>URL.revokeObjectURL(link.href),1000);
@@ -320,10 +355,17 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
 
   const optimize = () => { setBrightness(104); setContrast(103); setStatus(lang==="zh"?"已应用自然优化，可随时重置":"Natural enhancement applied · reset anytime"); };
   const resetPhoto = () => { setZoom(100); setOffsetX(0); setOffsetY(0); setRotation(0); setBrightness(100); setContrast(100); setStatus(imageUrl ? (lang==="zh"?"照片位置与画面效果已重置":"Photo position and appearance reset") : (lang==="zh"?"等待选择照片":"Waiting for a photo")); };
+  const updateMinSizeKb = (value:number) => {
+    const gap = sizeUnit === "MB" ? 102 : 5;
+    const next = Math.min(MAX_TARGET_KB - 1, targetSizeFromInput(value, sizeUnit));
+    setMinSizeKb(next);
+    if (next >= maxSizeKb) setMaxSizeKb(Math.min(MAX_TARGET_KB, next + gap));
+  };
   const updateMaxSizeKb = (value:number) => {
-    const next = Math.max(1, Math.round(value || 1));
+    const gap = sizeUnit === "MB" ? 102 : 5;
+    const next = Math.max(2, targetSizeFromInput(value, sizeUnit));
     setMaxSizeKb(next);
-    if (next < minSizeKb) setMinSizeKb(next > 5 ? next - 5 : next);
+    if (next <= minSizeKb) setMinSizeKb(Math.max(1, next - gap));
   };
   const resetGuides = () => { setHeadTop(10); setHeadRegion(70); setShoulderRegion(20); setSideSpace(10); setEyeLine(35); setStatus(lang==="zh"?"成像要求已恢复为 1/10、7/10、1/5、左右各 1/10":"Composition restored to 10%, 70%, 20% and 10% side margins"); };
   const makePrintSheet = () => {
@@ -344,8 +386,8 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
   if (view === "home") return <Landing lang={lang} setLang={setLang} playIntro={playIntro} onStart={()=>{setPlayIntro(false);setView("studio")}}/>;
 
   const showLeftPanel = effectiveExpertMode || wizardStep === 0;
-  const showStagePanel = effectiveExpertMode || wizardStep === 1 || wizardStep === 2;
-  const showRightPanel = effectiveExpertMode || wizardStep >= 1;
+  const showStagePanel = effectiveExpertMode || wizardStep >= 1;
+  const showRightPanel = true;
   const replaceLeadingZero = (event:React.KeyboardEvent<HTMLElement>) => {
     const input=event.target as HTMLInputElement;
     if(input?.type!=="number"||input.value!=="0"||event.ctrlKey||event.metaKey||event.altKey)return;
@@ -385,33 +427,89 @@ export default function Home({initialView="home"}:{initialView?:"home"|"studio"}
         <div className="dimension-row compact expert-only"><label><span>分辨率</span><input value={dpi} min={72} max={600} type="number" onChange={e=>updateResolution(numberFromInput(e.target.value))}/></label><span className="unit">DPI</span><span className="measure">{sizeLinked?"参与尺寸换算":"仅写入导出信息"}</span></div><label className="size-link-toggle expert-only"><input type="checkbox" checked={sizeLinked} onChange={e=>toggleSizeLink(e.target.checked)}/><span><b>{lang==="zh"?"联动 PX、MM 与 DPI":"Link PX, MM and DPI"}</b><small>{lang==="zh"?"开启后双向换算，关闭后各自独立":"Convert together when enabled"}</small></span></label></div>
         <div className="composition-settings-group">
         {expertMode&&<div className="advanced-fields"><div className="composition-rule"><span><b>{headTop}%</b>{lang==="zh"?"头部上空":"Top space"}</span><span><b>{headRegion}%</b>{lang==="zh"?"头部区域":"Head area"}</span><span><b>{shoulderRegion}%</b>{lang==="zh"?"肩部区域":"Shoulders"}</span><span><b>{sideSpace}%</b>{lang==="zh"?"左右各留空":"Side margin"}</span></div><label>{lang==="zh"?"头部上空":"Top space"}<input type="number" min="0" max="35" value={headTop} onChange={e=>setHeadTop(numberFromInput(e.target.value))}/><span>%</span></label><label>{lang==="zh"?"头部区域":"Head area"}<input type="number" min="30" max="90" value={headRegion} onChange={e=>setHeadRegion(numberFromInput(e.target.value))}/><span>%</span></label><label>{lang==="zh"?"肩部区域":"Shoulders"}<input type="number" min="0" max="45" value={shoulderRegion} onChange={e=>setShoulderRegion(numberFromInput(e.target.value))}/><span>%</span></label><label>{lang==="zh"?"左右各留空":"Each side"}<input type="number" min="0" max="30" value={sideSpace} onChange={e=>setSideSpace(numberFromInput(e.target.value))}/><span>%</span></label><label>{lang==="zh"?"眼睛参考线":"Eye line"}<input type="number" min="10" max="75" value={eyeLine} onChange={e=>setEyeLine(numberFromInput(e.target.value))}/><span>%</span></label><div className={`guide-total ${headTop+headRegion+shoulderRegion===100?"valid":"warning"}`}>{lang==="zh"?"纵向合计":"Vertical total"} {headTop+headRegion+shoulderRegion}% {headTop+headRegion+shoulderRegion===100?(lang==="zh"?"· 比例完整":"· Complete"):(lang==="zh"?"· 建议调整为 100%":"· Adjust to 100%")}</div><button className="reset-subtle" onClick={resetGuides}><RotateCcw size={14}/>{lang==="zh"?"恢复默认成像要求":"Restore defaults"}</button></div>}</div>
-        {!expertMode&&<div className="basic-detail-groups"><p>详细设置 <span>按需展开</span></p><details><summary>尺寸与 DPI <em>可修改</em></summary><label>输出宽度 PX<input type="number" min="64" max="6000" value={width} onChange={e=>updatePixelWidth(numberFromInput(e.target.value))}/></label><label>输出高度 PX<input type="number" min="64" max="6000" value={height} onChange={e=>updatePixelHeight(numberFromInput(e.target.value))}/></label><label>成像区宽度 MM<input type="number" min="5" value={areaWidthMm} onChange={e=>updateAreaWidth(numberFromInput(e.target.value))}/></label><label>成像区高度 MM<input type="number" min="5" value={areaHeightMm} onChange={e=>updateAreaHeight(numberFromInput(e.target.value))}/></label><label>DPI<input type="number" min="72" max="600" value={dpi} onChange={e=>updateResolution(numberFromInput(e.target.value))}/></label></details><details><summary>人像成像要求 <em>{headTop!==10||headRegion!==70||shoulderRegion!==20||sideSpace!==10?"已自定义":"默认"}</em></summary><label>头部上空 %<input type="number" value={headTop} onChange={e=>setHeadTop(numberFromInput(e.target.value))}/></label><label>头部区域 %<input type="number" value={headRegion} onChange={e=>setHeadRegion(numberFromInput(e.target.value))}/></label><label>肩部区域 %<input type="number" value={shoulderRegion} onChange={e=>setShoulderRegion(numberFromInput(e.target.value))}/></label><label>左右留空 %<input type="number" value={sideSpace} onChange={e=>setSideSpace(numberFromInput(e.target.value))}/></label><button onClick={resetGuides}>恢复本组默认值</button></details><details><summary>画面调整 <em>{brightness!==100||contrast!==100||rotation!==0?"已自定义":"默认"}</em></summary><label>亮度 %<input type="number" value={brightness} onChange={e=>setBrightness(numberFromInput(e.target.value))}/></label><label>对比度 %<input type="number" value={contrast} onChange={e=>setContrast(numberFromInput(e.target.value))}/></label><label>旋转角度<input type="number" value={rotation} onChange={e=>setRotation(numberFromInput(e.target.value))}/></label></details><details><summary>文件大小与格式 <em>可修改</em></summary><label>格式<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="jpeg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label>最小 KB<input type="number" value={minSizeKb} onChange={e=>setMinSizeKb(numberFromInput(e.target.value))}/></label><label>最大 KB<input type="number" value={maxSizeKb} onChange={e=>updateMaxSizeKb(numberFromInput(e.target.value))}/></label><label>质量 %<input type="number" min="50" max="100" value={quality} onChange={e=>setQuality(numberFromInput(e.target.value))}/></label></details><details><summary>冲印排版 <em>6 寸</em></summary><p>使用当前照片和实体尺寸自动生成 6 寸冲印排版。</p><button onClick={makePrintSheet}>生成冲印版</button></details></div>}
       </aside>
       <section className="stage-panel" hidden={!showStagePanel} aria-hidden={!showStagePanel}>
-        <div className="stage-head"><div><span className="eyebrow">{lang==="zh"?"工作区":"CANVAS"}</span><h2>{imageUrl?(lang==="zh"?"在照片内拖动，滚轮或双指缩放":"Drag inside the photo · wheel or pinch to zoom"):(lang==="zh"?"添加一张正面照片":"Add a front-facing photo")}</h2></div><div className="stage-tools"><button onClick={resetPhoto}><RotateCcw size={16}/>{lang==="zh"?"重置照片":"Reset photo"}</button></div></div>
+        <div className="stage-head"><div><span className="eyebrow">{lang==="zh"?"工作区":"CANVAS"}</span><h2>{imageUrl?(lang==="zh"?"在照片内拖动，滚轮或双指缩放":"Drag inside the photo · wheel or pinch to zoom"):(lang==="zh"?"添加一张正面照片":"Add a front-facing photo")}</h2></div><div className="stage-tools">{imageUrl&&<button type="button" className={`canvas-lock-toggle ${canvasLocked?"locked":""}`} aria-pressed={canvasLocked} onClick={()=>setCanvasLocked(value=>!value)}><LockKeyhole size={14}/>{canvasLocked?(lang==="zh"?"解锁照片":"Unlock photo"):(lang==="zh"?"锁定照片":"Lock photo")}</button>}<button className="stage-reset-button" onClick={resetPhoto}><RotateCcw size={16}/>{lang==="zh"?"重置照片":"Reset photo"}</button></div></div>
         <div className="canvas-stage"><div className="measurement top-measure">{width} px</div><div className="measurement side-measure">{height} px</div>
           <div className={`photo-frame ${imageUrl&&!canvasLocked?"is-draggable":""} ${canvasLocked?"is-locked":""} ${background==="transparent"&&mattingMode==="remove"?"checker":""}`} data-zoom={zoom} data-offset-x={offsetX} data-offset-y={offsetY} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onWheel={zoomAtPointer} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();pickImage(e.dataTransfer.files[0])}} style={{aspectRatio:`${width}/${height}`,background:background==="transparent"?"#fff":background}}><canvas ref={canvasRef} className={imageUrl?"visible":""}/>
-            {imageUrl&&<button type="button" className={`canvas-lock-toggle ${canvasLocked?"locked":""}`} aria-pressed={canvasLocked} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setCanvasLocked(value=>!value)}}><LockKeyhole size={14}/>{canvasLocked?(lang==="zh"?"解锁照片":"Unlock photo"):(lang==="zh"?"锁定照片":"Lock photo")}</button>}
-            {imageUrl?<div className="guides" aria-hidden="true"><span className="guide" style={{top:`${headTop}%`}}>{lang==="zh"?"上空":"Top"} {headTop}%</span><span className="guide" style={{top:`${eyeLine}%`}}>{lang==="zh"?"眼睛":"Eyes"} {eyeLine}%</span><span className="guide shoulder-guide" style={{top:`${Math.min(100,headTop+headRegion)}%`,height:`${Math.max(0,Math.min(shoulderRegion,100-headTop-headRegion))}%`}}>{lang==="zh"?"肩部":"Shoulders"} {shoulderRegion}%</span><i className="center-line"/><i className="side-guide" style={{left:`${sideSpace}%`}}>{lang==="zh"?"左空":"Left"} {sideSpace}%</i><i className="side-guide" style={{right:`${sideSpace}%`}}>{lang==="zh"?"右空":"Right"} {sideSpace}%</i><span className="drag-hint"><Move size={13}/>{lang==="zh"?"拖动照片调整位置":"Drag to reposition"}</span></div>:<div className="upload-zone"><span className="upload-icon"><ImagePlus size={29}/></span><b>{lang==="zh"?"拍照或上传正面照片":"Take or upload a front-facing photo"}</b><span>{lang==="zh"?"请选择光线均匀、面部无遮挡的照片":"Use even lighting and keep the face unobstructed"}</span><div className="upload-actions"><button onClick={e=>{e.stopPropagation();cameraRef.current?.click()}}><Camera size={16}/>{lang==="zh"?"拍照":"Camera"}</button><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}><Upload size={16}/>{lang==="zh"?"上传照片":"Upload"}</button></div><small>{lang==="zh"?"支持 JPG、PNG、WebP · 采集标准为高 192 × 宽 144 px":"JPG, PNG, WebP · default H 192 × W 144 px"}</small></div>}
+            {imageUrl?<div className="guides" aria-hidden="true"><span className="guide" style={{top:`${headTop}%`}}>{lang==="zh"?"上空":"Top"} {headTop}%</span><span className="guide" style={{top:`${eyeLine}%`}}>{lang==="zh"?"眼睛":"Eyes"} {eyeLine}%</span><span className="guide shoulder-guide" style={{top:`${Math.min(100,headTop+headRegion)}%`,height:`${Math.max(0,Math.min(shoulderRegion,100-headTop-headRegion))}%`}}>{lang==="zh"?"肩部":"Shoulders"} {shoulderRegion}%</span><i className="center-line"/><i className="side-guide" style={{left:`${sideSpace}%`}}>{lang==="zh"?"左空":"Left"} {sideSpace}%</i><i className="side-guide" style={{right:`${sideSpace}%`}}>{lang==="zh"?"右空":"Right"} {sideSpace}%</i><span className="drag-hint"><Move size={13}/>{lang==="zh"?"拖动照片调整位置":"Drag to reposition"}</span></div>:<div className="upload-zone"><span className="upload-icon"><ImagePlus size={29}/></span><b>{lang==="zh"?"拍照或上传正面照片":"Take or upload a front-facing photo"}</b><span>{lang==="zh"?"请选择光线均匀、面部无遮挡的照片":"Use even lighting and keep the face unobstructed"}</span><div className="upload-actions"><button onClick={e=>{e.stopPropagation();setCameraOpen(true)}}><Camera size={16}/>{lang==="zh"?"拍照":"Camera"}</button><button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}><Upload size={16}/>{lang==="zh"?"上传照片":"Upload"}</button></div><small>{lang==="zh"?"支持 JPG、PNG、WebP · 单张最大 30 MB":"JPG, PNG, WebP · up to 30 MB"}</small></div>}
             <input ref={fileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>pickImage(e.target.files?.[0])}/>
-            <input ref={cameraRef} hidden type="file" accept="image/*" capture="user" onChange={e=>pickImage(e.target.files?.[0])}/>
           </div>
         </div>
         <div className="stage-status"><span><ShieldCheck size={15}/> {status}</span><button onClick={()=>fileRef.current?.click()}><FileImage size={15}/>{lang==="zh"?"更换照片":"Replace photo"}</button></div>
       </section>
       <aside className="panel right-panel" hidden={!showRightPanel} aria-hidden={!showRightPanel}>
-        <div className="panel-heading"><div><span className="eyebrow">{effectiveExpertMode?(lang==="zh"?"完整参数":"ALL CONTROLS"):(lang==="zh"?`第 ${wizardStep+1} 步设置`:`STEP ${wizardStep+1}`)}</span><h2>{effectiveExpertMode?(lang==="zh"?"调整与输出":"Adjust & export"):(['',lang==="zh"?"构图操作":"Composition",lang==="zh"?"抠图与背景":"Matting & background",lang==="zh"?"检查与保存":"Review & save"][wizardStep])}</h2></div><Sparkles size={20} className="sparkle"/></div>
+        <div className="panel-heading"><div><span className="eyebrow">{effectiveExpertMode?(lang==="zh"?"完整参数":"ALL CONTROLS"):(lang==="zh"?`第 ${wizardStep+1} 步设置`:`STEP ${wizardStep+1}`)}</span><h2>{effectiveExpertMode?(lang==="zh"?"调整与输出":"Adjust & export"):([lang==="zh"?"规格详细设置":"Specification details",lang==="zh"?"构图操作":"Composition",lang==="zh"?"抠图与背景":"Matting & background",lang==="zh"?"检查与保存":"Review & save"][wizardStep])}</h2></div><Sparkles size={20} className="sparkle"/></div>
+        {!expertMode&&<div className="basic-detail-groups"><p>详细设置 <span>按需展开</span></p><details><summary>尺寸与 DPI <em>可修改</em></summary><label>输出宽度 PX<input type="number" min="64" max="6000" value={width} onChange={e=>updatePixelWidth(numberFromInput(e.target.value))}/></label><label>输出高度 PX<input type="number" min="64" max="6000" value={height} onChange={e=>updatePixelHeight(numberFromInput(e.target.value))}/></label><label>成像区宽度 MM<input type="number" min="5" value={areaWidthMm} onChange={e=>updateAreaWidth(numberFromInput(e.target.value))}/></label><label>成像区高度 MM<input type="number" min="5" value={areaHeightMm} onChange={e=>updateAreaHeight(numberFromInput(e.target.value))}/></label><label>DPI<input type="number" min="72" max="600" value={dpi} onChange={e=>updateResolution(numberFromInput(e.target.value))}/></label></details><details><summary>人像成像要求 <em>{headTop!==10||headRegion!==70||shoulderRegion!==20||sideSpace!==10?"已自定义":"默认"}</em></summary><label>头部上空 %<input type="number" value={headTop} onChange={e=>setHeadTop(numberFromInput(e.target.value))}/></label><label>头部区域 %<input type="number" value={headRegion} onChange={e=>setHeadRegion(numberFromInput(e.target.value))}/></label><label>肩部区域 %<input type="number" value={shoulderRegion} onChange={e=>setShoulderRegion(numberFromInput(e.target.value))}/></label><label>左右留空 %<input type="number" value={sideSpace} onChange={e=>setSideSpace(numberFromInput(e.target.value))}/></label><button onClick={resetGuides}>恢复本组默认值</button></details><details><summary>画面调整 <em>{brightness!==100||contrast!==100||rotation!==0?"已自定义":"默认"}</em></summary><label>亮度 %<input type="number" value={brightness} onChange={e=>setBrightness(numberFromInput(e.target.value))}/></label><label>对比度 %<input type="number" value={contrast} onChange={e=>setContrast(numberFromInput(e.target.value))}/></label><label>旋转角度<input type="number" value={rotation} onChange={e=>setRotation(numberFromInput(e.target.value))}/></label></details><details><summary>文件大小与格式 <em>可修改</em></summary><label>格式<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="jpeg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label>单位<select value={sizeUnit} onChange={e=>setSizeUnit(e.target.value as FileSizeUnit)}><option value="KB">KB</option><option value="MB">MB</option></select></label><label>最小 {sizeUnit}<input type="number" min={sizeUnit==="MB"?.001:1} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB-1} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(minSizeKb,sizeUnit)} onChange={e=>updateMinSizeKb(numberFromInput(e.target.value))}/></label><label>最大 {sizeUnit}<input type="number" min={sizeUnit==="MB"?.002:2} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(maxSizeKb,sizeUnit)} onChange={e=>updateMaxSizeKb(numberFromInput(e.target.value))}/></label><small>最大 {MAX_TARGET_MB} MB</small><label>质量 %<input type="number" min="50" max="100" value={quality} onChange={e=>setQuality(numberFromInput(e.target.value))}/></label></details><details><summary>冲印排版 <em>6 寸</em></summary><p>使用当前照片和实体尺寸自动生成 6 寸冲印排版。</p><button onClick={makePrintSheet}>生成冲印版</button></details></div>}
         <div className="control-group background-control"><div className="control-label"><b>{lang==="zh"?"抠图与背景":"Matting & background"}</b><span>{mattingProcessing?(lang==="zh"?"处理中":"Processing"):mattingMode==="remove"?(lang==="zh"?"自动抠图":"Auto remove"):(lang==="zh"?"保留原背景":"Original")}</span></div><div className="background-mode-row two"><button className={mattingMode==="remove"?"active":""} onClick={()=>{setMattingMode("remove");setMattingPreviewOriginal(false)}}>{lang==="zh"?"自动抠图":"Auto"}</button><button className={mattingMode==="keep"?"active":""} onClick={()=>{setMattingMode("keep");setMattingPreviewOriginal(false)}}>{lang==="zh"?"保留原背景":"Keep"}</button></div>{mattingMode==="remove"&&<><div className="color-row">{colors.map(color=><button key={color} onClick={()=>setBackground(color)} aria-label={`${lang==="zh"?"背景":"Background"} ${color}`} className={background===color?"active":""} style={{background:color}}/>)}<label className="eyedropper-button" onClick={()=>setMattingPreviewOriginal(true)}><Pipette size={14}/><span>{lang==="zh"?"取色器":"Color picker"}</span><input type="color" value={background==="transparent"?"#ffffff":background} onChange={e=>setBackground(e.target.value)}/></label><button className={`transparent ${background==="transparent"?"active":""}`} onClick={()=>{setBackground("transparent");setFormat("png")}} aria-label={lang==="zh"?"透明背景":"Transparent background"}/></div><div className="control-label second"><b>{lang==="zh"?"背景识别范围":"Detection range"}</b><span>{mattingTolerance}</span></div><Slider value={[mattingTolerance]} min={12} max={180} step={1} onValueChange={v=>setMattingTolerance(v[0])}/><small className="range-tip">{lang==="zh"?"残留背景多就调高；人物被误删就调低":"Raise for leftovers; lower if the subject is removed"}</small><div className="control-label second"><b>{lang==="zh"?"边缘柔化":"Edge feather"}</b><span>{mattingFeather}</span></div><Slider value={[mattingFeather]} min={0} max={72} step={1} onValueChange={v=>setMattingFeather(v[0])}/><div className={`matting-inline-status ${mattingProcessing?"is-processing":""}`}>{mattingProcessing&&<span className="mini-spinner"/>}{mattingStatus}</div><div className="matting-control-actions"><button onClick={()=>setMattingPreviewOriginal(value=>!value)}>{mattingPreviewOriginal?(lang==="zh"?"查看抠图结果":"Show result"):(lang==="zh"?"对比原图":"Compare original")}</button><button onClick={()=>setMattingRevision(value=>value+1)}><RotateCw size={14}/>{lang==="zh"?"重新处理":"Reprocess"}</button></div></>}</div>
-        {expertMode?<div className="control-group transform-control"><div className="control-label"><b>{lang==="zh"?"精确构图":"Precise composition"}</b><span>{lang==="zh"?"与画布操作同步":"Synced with canvas"}</span></div><div className="transform-fields"><label>{lang==="zh"?"缩放":"Zoom"}<span><input type="number" min="50" max="300" value={zoom} onChange={e=>setZoom(Math.max(50,Math.min(300,numberFromInput(e.target.value))))}/><b>%</b></span></label><label>X<span><input type="number" step="0.01" value={Number(offsetX.toFixed(2))} onChange={e=>setOffsetX(numberFromInput(e.target.value))}/></span></label><label>Y<span><input type="number" step="0.01" value={Number(offsetY.toFixed(2))} onChange={e=>setOffsetY(numberFromInput(e.target.value))}/></span></label><label>{lang==="zh"?"旋转":"Rotate"}<span><input type="number" min="-15" max="15" value={rotation} onChange={e=>setRotation(numberFromInput(e.target.value))}/><b>°</b></span></label></div></div>:wizardStep===1?<div className="gesture-card"><Move size={20}/><div><b>{lang==="zh"?"直接在照片上调整":"Adjust directly on the photo"}</b><span>{lang==="zh"?"电脑在画面内拖动、滚轮缩放；画面外正常滚动页面。手机单指拖动、双指缩放。":"Drag and wheel inside the photo on desktop. Drag with one finger and pinch with two on mobile."}</span></div></div>:null}
+        {expertMode?<div className="control-group transform-control"><div className="control-label"><b>{lang==="zh"?"精确构图":"Precise composition"}</b><span>{lang==="zh"?"与画布操作同步":"Synced with canvas"}</span></div><div className="transform-fields"><label>{lang==="zh"?"缩放":"Zoom"}<span><input type="number" min="50" max="300" step="0.1" value={Number(zoom.toFixed(1))} onChange={e=>setZoom(Math.max(50,Math.min(300,numberFromInput(e.target.value))))}/><b>%</b></span></label><label>X<span><input type="number" step="0.01" value={Number(offsetX.toFixed(2))} onChange={e=>setOffsetX(numberFromInput(e.target.value))}/></span></label><label>Y<span><input type="number" step="0.01" value={Number(offsetY.toFixed(2))} onChange={e=>setOffsetY(numberFromInput(e.target.value))}/></span></label><label>{lang==="zh"?"旋转":"Rotate"}<span><input type="number" min="-15" max="15" value={rotation} onChange={e=>setRotation(numberFromInput(e.target.value))}/><b>°</b></span></label></div></div>:wizardStep===1?<div className="gesture-card"><Move size={20}/><div><b>{lang==="zh"?"直接在照片上调整":"Adjust directly on the photo"}</b><span>{lang==="zh"?"电脑在画面内拖动、滚轮缩放；画面外正常滚动页面。手机单指拖动、双指缩放。":"Drag and wheel inside the photo on desktop. Drag with one finger and pinch with two on mobile."}</span></div></div>:null}
         <div className="control-group appearance-control"><div className="control-label"><b>{lang==="zh"?"画面亮度":"Brightness"}</b><span>{brightness}%</span></div><Slider value={[brightness]} min={70} max={140} step={1} onValueChange={v=>setBrightness(v[0])}/><div className="control-label second"><b>{lang==="zh"?"对比度":"Contrast"}</b><span>{contrast}%</span></div><Slider value={[contrast]} min={70} max={140} step={1} onValueChange={v=>setContrast(v[0])}/></div>
         <div className="dual-actions appearance-actions"><button className="magic-button" onClick={optimize}><Sparkles size={17}/>{lang==="zh"?"自然优化":"Auto enhance"}<span>{lang==="zh"?"推荐":"AUTO"}</span></button><button className="photo-reset-button" onClick={resetPhoto}><RotateCcw size={16}/>{lang==="zh"?"重置照片设置":"Reset photo"}</button></div>
-        <div className="export-options output-controls"><label>{lang==="zh"?"文件格式":"Format"}<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="jpeg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label>{lang==="zh"?"初始质量":"Quality"}<input type="number" min="50" max="100" value={quality} onChange={e=>setQuality(numberFromInput(e.target.value))}/><span>%</span></label><label className="size-limit-field">{lang==="zh"?"文件大小区间":"File-size range"}<span className="size-inputs"><input aria-label="minimum KB" type="number" min="1" value={minSizeKb} onChange={e=>setMinSizeKb(numberFromInput(e.target.value))}/><i>—</i><input aria-label="maximum KB" type="number" min="1" value={maxSizeKb} onChange={e=>updateMaxSizeKb(numberFromInput(e.target.value))}/><b>KB</b></span></label><label className="filename-field">{lang==="zh"?"文件名":"Filename"}<input value={filename} maxLength={120} placeholder={lang==="zh"?"例如：证件照_用途_日期":"For example: ID-photo_purpose_date"} onChange={e=>setFilename(e.target.value)}/></label></div>
-        <div className="summary-card output-summary"><div className="summary-head"><b>{lang==="zh"?"导出摘要":"Export summary"}</b><span className="ready-dot">● {lang==="zh"?"就绪":"Ready"}</span></div><dl><div><dt>{lang==="zh"?"采集像素":"Pixels"}</dt><dd>{lang==="zh"?"高":"H"} {height} × {lang==="zh"?"宽":"W"} {width} px</dd></div><div><dt>{lang==="zh"?"成像区":"Imaging area"}</dt><dd>{lang==="zh"?"高":"H"} {areaHeightMm} × {lang==="zh"?"宽":"W"} {areaWidthMm} mm</dd></div><div><dt>{lang==="zh"?"大小区间":"File range"}</dt><dd>{minSizeKb}—{maxSizeKb} KB</dd></div><div><dt>{lang==="zh"?"格式":"Format"}</dt><dd>{format.toUpperCase()} · {quality}%</dd></div></dl></div>
-        <button className="export-button" onClick={download}><Download size={19}/>{lang==="zh"?"保存电子证件照":"Save ID photo"}</button><button className="print-button" onClick={makePrintSheet}><Camera size={17}/>{lang==="zh"?"生成 6 寸冲印排版照":"Create 6-inch print sheet"}</button><p className="offline-note"><CloudOff size={14}/>{lang==="zh"?"断网也能完成裁剪和保存":"Crop and save while offline"}</p>
+        <div className="export-options output-controls"><label>{lang==="zh"?"文件格式":"Format"}<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="jpeg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label>{lang==="zh"?"初始质量":"Quality"}<input type="number" min="50" max="100" value={quality} onChange={e=>setQuality(numberFromInput(e.target.value))}/><span>%</span></label><label className="size-limit-field">{lang==="zh"?"文件大小区间":"File-size range"}<span className="size-inputs"><input aria-label="minimum file size" type="number" min={sizeUnit==="MB"?.001:1} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB-1} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(minSizeKb,sizeUnit)} onChange={e=>updateMinSizeKb(numberFromInput(e.target.value))}/><i>—</i><input aria-label="maximum file size" type="number" min={sizeUnit==="MB"?.002:2} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(maxSizeKb,sizeUnit)} onChange={e=>updateMaxSizeKb(numberFromInput(e.target.value))}/><select className="size-unit-select" aria-label="file size unit" value={sizeUnit} onChange={e=>setSizeUnit(e.target.value as FileSizeUnit)}><option value="KB">KB</option><option value="MB">MB</option></select></span><small>{lang==="zh"?`可输入小数，最大 ${MAX_TARGET_MB} MB`:`Decimals supported · up to ${MAX_TARGET_MB} MB`}</small></label><label className="filename-field">{lang==="zh"?"文件名":"Filename"}<input value={filename} maxLength={120} placeholder={lang==="zh"?"例如：证件照_用途_日期":"For example: ID-photo_purpose_date"} onChange={e=>setFilename(e.target.value)}/></label></div>
+        <div className="summary-card output-summary"><div className="summary-head"><b>{lang==="zh"?"导出摘要":"Export summary"}</b><span className="ready-dot">● {lang==="zh"?"就绪":"Ready"}</span></div><dl><div><dt>{lang==="zh"?"采集像素":"Pixels"}</dt><dd>{lang==="zh"?"高":"H"} {height} × {lang==="zh"?"宽":"W"} {width} px</dd></div><div><dt>{lang==="zh"?"成像区":"Imaging area"}</dt><dd>{lang==="zh"?"高":"H"} {areaHeightMm} × {lang==="zh"?"宽":"W"} {areaWidthMm} mm</dd></div><div><dt>{lang==="zh"?"大小区间":"File range"}</dt><dd>{formatTargetSize(minSizeKb,sizeUnit)}—{formatTargetSize(maxSizeKb,sizeUnit)} {sizeUnit}</dd></div><div><dt>{lang==="zh"?"格式":"Format"}</dt><dd>{format.toUpperCase()} · {quality}%</dd></div></dl></div>
+        <div className="save-actions"><button className="export-button" onClick={download}><Download size={19}/>{lang==="zh"?"保存电子证件照":"Save ID photo"}</button><button className="print-button" onClick={makePrintSheet}><FileImage size={17}/>{lang==="zh"?"生成 6 寸相纸排版照":"Create 6-inch print sheet"}</button><small className="print-explain">{lang==="zh"?"6 寸指相纸尺寸，照片数量会按当前证件照尺寸自动计算。":"6-inch refers to the paper size; the number of copies is calculated automatically."}</small></div><p className="offline-note"><CloudOff size={14}/>{lang==="zh"?"断网也能完成裁剪和保存":"Crop and save while offline"}</p>
       </aside>
       {!expertMode&&<div className="wizard-nav"><button disabled={wizardStep===0} onClick={()=>setWizardStep(step=>Math.max(0,step-1))}>← {lang==="zh"?"上一步":"Back"}</button><span>{lang==="zh"?`第 ${wizardStep+1} / 4 步`:`Step ${wizardStep+1} / 4`}</span><button disabled={wizardStep===3} onClick={()=>setWizardStep(step=>Math.min(3,step+1))}>{lang==="zh"?"下一步":"Next"} →</button></div>}
     </section>
+    <CameraCaptureDialog open={cameraOpen} lang={lang} onClose={()=>setCameraOpen(false)} onCapture={pickImage}/>
   </main>;
+}
+
+function CameraCaptureDialog({open,lang,onClose,onCapture}:{open:boolean;lang:Lang;onClose:()=>void;onCapture:(file:File)=>void}){
+  const videoRef=useRef<HTMLVideoElement>(null);
+  const streamRef=useRef<MediaStream|null>(null);
+  const [message,setMessage]=useState("");
+  const [ready,setReady]=useState(false);
+
+  useEffect(()=>{
+    if(!open)return;
+    let cancelled=false;
+    setReady(false);
+    const start=async()=>{
+      if(!window.isSecureContext&&!['localhost','127.0.0.1'].includes(window.location.hostname)){
+        setMessage(lang==="zh"?"当前地址不是 HTTPS，浏览器已禁止网页调用摄像头。请改用“上传照片”，或在配置 HTTPS 后重试。":"This page is not using HTTPS, so the browser blocks camera access. Upload a photo instead or retry after HTTPS is enabled.");
+        return;
+      }
+      if(!navigator.mediaDevices?.getUserMedia){
+        setMessage(lang==="zh"?"当前浏览器或内置网页不支持直接调用摄像头，请使用系统浏览器或上传照片。":"This browser does not support direct camera access. Use a system browser or upload a photo.");
+        return;
+      }
+      setMessage(lang==="zh"?"正在请求摄像头权限，请在浏览器提示中选择“允许”。":"Requesting camera permission. Choose Allow in the browser prompt.");
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:"user",width:{ideal:1920},height:{ideal:1440}}});
+        if(cancelled){stream.getTracks().forEach(track=>track.stop());return}
+        streamRef.current=stream;
+        if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play().catch(()=>{});}
+        setReady(true);
+        setMessage(lang==="zh"?"摄像头已启用，调整位置后点击拍摄。":"Camera ready. Frame the photo and capture it.");
+      }catch(error){
+        const name=error instanceof DOMException?error.name:"";
+        setMessage(name==="NotAllowedError"?(lang==="zh"?"未获得摄像头权限。请在浏览器地址栏或系统设置中允许摄像头，或者使用上传照片。":"Camera permission was denied. Allow it in browser or system settings, or upload a photo."):(lang==="zh"?"摄像头暂时不可用，可能正被其他应用占用。请关闭其他相机应用后重试。":"The camera is unavailable or in use by another app. Close other camera apps and retry."));
+      }
+    };
+    void start();
+    return()=>{cancelled=true;streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null};
+  },[open,lang]);
+
+  if(!open)return null;
+  const close=()=>{streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null;onClose()};
+  const capture=()=>{
+    const video=videoRef.current;
+    if(!video||!ready||!video.videoWidth||!video.videoHeight)return;
+    const canvas=document.createElement("canvas");
+    canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video,0,0,canvas.width,canvas.height);
+    canvas.toBlob(blob=>{if(!blob)return;onCapture(new File([blob],`camera_${Date.now()}.jpg`,{type:"image/jpeg"}));close()},"image/jpeg",.95);
+  };
+  return <div className="camera-dialog-backdrop" role="dialog" aria-modal="true" aria-label={lang==="zh"?"拍摄照片":"Take photo"} onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
+    <section className="camera-dialog-card">
+      <div className="camera-dialog-head"><div><span className="eyebrow">CAMERA</span><h2>{lang==="zh"?"拍摄正面照片":"Take a front-facing photo"}</h2></div><button onClick={close} aria-label={lang==="zh"?"关闭":"Close"}>×</button></div>
+      <div className="camera-preview"><video ref={videoRef} autoPlay muted playsInline/></div>
+      <p className={ready?"camera-message ready":"camera-message"}>{message}</p>
+      <div className="camera-dialog-actions"><button onClick={close}>{lang==="zh"?"取消":"Cancel"}</button><button onClick={capture} disabled={!ready}><Camera size={17}/>{lang==="zh"?"拍摄照片":"Capture"}</button></div>
+      <small>{lang==="zh"?"摄像头仅在点击拍照后申请权限；画面不会上传到服务器。":"Permission is requested only after you choose Camera. The video is not uploaded."}</small>
+    </section>
+  </div>;
 }
 
 function Landing({lang,setLang,playIntro,onStart}:{lang:Lang;setLang:(lang:Lang)=>void;playIntro:boolean;onStart:()=>void}){
@@ -461,16 +559,34 @@ export function CompressionTool({lang="zh"}:{lang?:Lang}){
   const [sourceSize,setSourceSize]=useState({width:0,height:0});
   const [minKb,setMinKb]=useState(50);
   const [maxKb,setMaxKb]=useState(300);
+  const [sizeUnit,setSizeUnit]=useState<FileSizeUnit>("KB");
   const [format,setFormat]=useState<"jpeg"|"png"|"webp">("jpeg");
   const [status,setStatus]=useState("选择照片后即可压缩");
   const inputRef=useRef<HTMLInputElement>(null);
   const previewRef=useRef<HTMLImageElement>(null);
-  const updateCompressionMax=(value:number)=>{const next=Math.max(1,Math.round(value||1));setMaxKb(next);if(next<minKb)setMinKb(next>5?next-5:next)};
-  const pick=(file?:File)=>{if(!file)return;if(!file.type.startsWith("image/")){setStatus("请选择图片文件");return}const next=URL.createObjectURL(file);setUrl(old=>{if(old)URL.revokeObjectURL(old);return next});setSourceName(file.name);setOriginalBytes(file.size);const img=new Image();img.onload=()=>{setSourceSize({width:img.width,height:img.height});setFormat(file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpeg");setStatus("照片已载入，可设置压缩区间")};img.src=next};
-  const compress=async()=>{const img=previewRef.current;if(!img||!url){setStatus("请先选择照片");return}if(minKb>maxKb){setStatus("文件大小下限不能大于上限");return}const canvas=document.createElement("canvas");canvas.width=sourceSize.width;canvas.height=sourceSize.height;canvas.getContext("2d")!.drawImage(img,0,0,sourceSize.width,sourceSize.height);const result=await canvasToTargetBlob(canvas,format,95,minKb,maxKb);const href=URL.createObjectURL(result.blob);const link=document.createElement("a");const base=sanitizeFilename(sourceName.replace(/\.[^.]+$/,""));link.download=`${base}_压缩.${format==="jpeg"?"jpg":format}`;link.href=href;link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);setStatus(`压缩完成：${Math.round(originalBytes/1024)} KB → ${Math.round(result.blob.size/1024)} KB${result.inRange?"":"（当前尺寸未能完全达到区间）"}`)};
+  const updateCompressionMin=(value:number)=>{const gap=sizeUnit==="MB"?102:5;const next=Math.min(MAX_TARGET_KB-1,targetSizeFromInput(value,sizeUnit));setMinKb(next);if(next>=maxKb)setMaxKb(Math.min(MAX_TARGET_KB,next+gap))};
+  const updateCompressionMax=(value:number)=>{const gap=sizeUnit==="MB"?102:5;const next=Math.max(2,targetSizeFromInput(value,sizeUnit));setMaxKb(next);if(next<=minKb)setMinKb(Math.max(1,next-gap))};
+  const pick=(file?:File)=>{
+    if(!file)return;
+    const uploadError=imageUploadError(file,lang);
+    if(uploadError){setStatus(uploadError);return}
+    const next=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const dimensionsError=imageDimensionsError(img.naturalWidth,img.naturalHeight,lang);
+      if(dimensionsError){URL.revokeObjectURL(next);setStatus(dimensionsError);return}
+      setUrl(old=>{if(old)URL.revokeObjectURL(old);return next});
+      setSourceName(file.name);setOriginalBytes(file.size);setSourceSize({width:img.width,height:img.height});
+      setFormat(file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpeg");
+      setStatus("照片已载入，可设置压缩区间");
+    };
+    img.onerror=()=>{URL.revokeObjectURL(next);setStatus("照片读取失败，请换一张照片")};
+    img.src=next;
+  };
+  const compress=async()=>{const img=previewRef.current;if(!img||!url){setStatus("请先选择照片");return}if(minKb>=maxKb){setStatus("文件大小下限必须小于上限");return}const canvas=document.createElement("canvas");canvas.width=sourceSize.width;canvas.height=sourceSize.height;canvas.getContext("2d")!.drawImage(img,0,0,sourceSize.width,sourceSize.height);const result=await canvasToTargetBlob(canvas,format,95,minKb,maxKb);const href=URL.createObjectURL(result.blob);const link=document.createElement("a");const base=sanitizeFilename(sourceName.replace(/\.[^.]+$/,""));link.download=`${base}_压缩.${format==="jpeg"?"jpg":format}`;link.href=href;link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);setStatus(`压缩完成：${Math.round(originalBytes/1024)} KB → ${Math.round(result.blob.size/1024)} KB${result.inRange?"":"（当前尺寸未能完全达到区间）"}`)};
   const isZh=lang==="zh";
   return <section className="compress-workspace">
-    <aside className="compress-intro"><span className="compress-badge"><ImageDown size={18}/></span><span className="eyebrow">{isZh?"独立工具":"STANDALONE TOOL"}</span><h1>{isZh?"照片压缩":"Photo compressor"}</h1><p>{isZh?"只调整照片文件大小，原始像素、比例和格式保持不变。当前版本在浏览器内完成处理。":"Reduce file size while preserving original pixels, aspect ratio and format. Processing runs in the browser in this version."}</p><ul><li><Check size={14}/>{isZh?"设置目标 KB 区间":"Set a target KB range"}</li><li><Check size={14}/>{isZh?"保持原始像素":"Keep original pixels"}</li><li><Check size={14}/>{isZh?"保持原始格式":"Keep original format"}</li></ul></aside>
+    <aside className="compress-intro"><span className="compress-badge"><ImageDown size={18}/></span><span className="eyebrow">{isZh?"独立工具":"STANDALONE TOOL"}</span><h1>{isZh?"照片压缩":"Photo compressor"}</h1><p>{isZh?"只调整照片文件大小，原始像素、比例和格式保持不变。当前版本在浏览器内完成处理。":"Reduce file size while preserving original pixels, aspect ratio and format. Processing runs in the browser in this version."}</p><ul><li><Check size={14}/>{isZh?"设置目标 KB 或 MB 区间":"Set a target KB or MB range"}</li><li><Check size={14}/>{isZh?"保持原始像素":"Keep original pixels"}</li><li><Check size={14}/>{isZh?"单张上传最大 30 MB":"Uploads up to 30 MB"}</li></ul></aside>
     <section className="compress-preview" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();pick(e.dataTransfer.files[0])}}>
       {url?<><img ref={previewRef} src={url} alt={isZh?"待压缩照片预览":"Photo preview"}/><button onClick={()=>inputRef.current?.click()}>{isZh?"更换照片":"Replace"}</button></>:<button className="compress-upload" onClick={()=>inputRef.current?.click()}><span><ImagePlus size={30}/></span><b>{isZh?"选择需要压缩的照片":"Choose a photo to compress"}</b><small>{isZh?"支持 JPG、PNG、WebP，也可拖放到这里":"JPG, PNG and WebP · drag and drop supported"}</small></button>}
       <input hidden ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>pick(e.target.files?.[0])}/>
@@ -479,7 +595,8 @@ export function CompressionTool({lang="zh"}:{lang?:Lang}){
       <div className="panel-heading"><div><span className="eyebrow">{isZh?"压缩参数":"COMPRESSION"}</span><h2>{isZh?"只设置文件大小":"Output settings"}</h2></div><span className="local-chip"><LockKeyhole size={13}/>{isZh?"本机":"Local"}</span></div>
       <div className="source-meta"><span>原始文件</span><b>{sourceName||"尚未选择"}</b><small>{url?`${sourceSize.width} × ${sourceSize.height} px · ${Math.round(originalBytes/1024)} KB`:"—"}</small></div>
       <label className="field-label">照片大小区间</label>
-      <div className="compress-range"><input aria-label="压缩最小 KB" type="number" min="1" value={minKb||""} onChange={e=>setMinKb(numberFromInput(e.target.value))}/><span>至</span><input aria-label="压缩最大 KB" type="number" min="1" value={maxKb||""} onChange={e=>updateCompressionMax(numberFromInput(e.target.value))}/><b>KB</b></div>
+      <div className="compress-range"><input aria-label="压缩最小文件大小" type="number" min={sizeUnit==="MB"?.001:1} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB-1} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(minKb,sizeUnit)} onChange={e=>updateCompressionMin(numberFromInput(e.target.value))}/><span>至</span><input aria-label="压缩最大文件大小" type="number" min={sizeUnit==="MB"?.002:2} max={sizeUnit==="MB"?MAX_TARGET_MB:MAX_TARGET_KB} step={sizeUnit==="MB"?.01:1} value={targetSizeToInput(maxKb,sizeUnit)} onChange={e=>updateCompressionMax(numberFromInput(e.target.value))}/><select className="size-unit-select" aria-label="压缩文件大小单位" value={sizeUnit} onChange={e=>setSizeUnit(e.target.value as FileSizeUnit)}><option value="KB">KB</option><option value="MB">MB</option></select></div>
+      <small className="range-safety-tip">支持 MB 小数输入 · 最大 {MAX_TARGET_MB} MB · 必须保持最小值小于最大值</small>
       <div className="compress-status">{status}</div>
       <button className="export-button compress-submit" onClick={compress}><Download size={18}/> 压缩并保存</button>
     </aside>
@@ -510,19 +627,32 @@ export function MattingTool({lang="zh"}:{lang?:Lang}){
   const [feather,setFeather]=useState(18);
   const [revision,setRevision]=useState(0);
   const [showOriginal,setShowOriginal]=useState(false);
-  const [mattingMode,setMattingMode]=useState<"remove"|"keep">("remove");
   const [processing,setProcessing]=useState(false);
+  const [cameraOpen,setCameraOpen]=useState(false);
   const [status,setStatus]=useState(lang==="zh"?"上传照片后，从画面边缘自动识别连续背景":"Upload a photo to detect the connected background from its edges");
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const uploadRef=useRef<HTMLInputElement>(null);
-  const cameraRef=useRef<HTMLInputElement>(null);
-  const pick=(file?:File)=>{if(!file)return;if(!file.type.startsWith("image/")){setStatus(lang==="zh"?"请选择图片文件":"Please choose an image file");return}const next=URL.createObjectURL(file);setUrl(old=>{if(old)URL.revokeObjectURL(old);return next});setShowOriginal(false);setStatus(lang==="zh"?"正在分析连续背景区域…":"Detecting connected background…")};
-  useEffect(()=>{if(!url)return;let cancelled=false;setProcessing(true);const image=new Image();image.onload=()=>{requestAnimationFrame(()=>{if(cancelled)return;const canvas=canvasRef.current;if(!canvas)return;try{if(showOriginal||mattingMode!=="remove"){const ratio=Math.min(1,2200/Math.max(image.naturalWidth,image.naturalHeight));canvas.width=Math.round(image.naturalWidth*ratio);canvas.height=Math.round(image.naturalHeight*ratio);canvas.getContext("2d")?.drawImage(image,0,0,canvas.width,canvas.height);setStatus(lang==="zh"?"正在查看原图，点击“查看效果”返回":"Showing original · choose Result to return")}else{const result=renderBackgroundRemoval(image,canvas,background,tolerance,feather);const percent=Math.round(result.removed/(result.width*result.height)*100);setStatus(lang==="zh"?`处理完成 · 已识别约 ${percent}% 的边缘背景`:`Done · about ${percent}% of connected background detected`)}setProcessing(false)}catch(error){setProcessing(false);setStatus(error instanceof Error?error.message:(lang==="zh"?"处理失败，请更换照片重试":"Processing failed. Try another photo"))}})};image.onerror=()=>{setProcessing(false);setStatus(lang==="zh"?"照片读取失败，请换一张照片":"Could not read this image")};image.src=url;return()=>{cancelled=true}},[url,background,tolerance,feather,revision,showOriginal,mattingMode,lang]);
-  const save=()=>{const canvas=canvasRef.current;if(!canvas||!url){setStatus(lang==="zh"?"请先拍照或上传照片":"Take or upload a photo first");return}const transparent=mattingMode==="remove"&&background==="transparent";canvas.toBlob(blob=>{if(!blob)return;const href=URL.createObjectURL(blob);const link=document.createElement("a");link.download=`${lang==="zh"?"抠像换背景":"background_removed"}_${new Date().toISOString().slice(0,10)}.${transparent?"png":"jpg"}`;link.href=href;link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);setStatus(lang==="zh"?"换背景照片已保存":"Background-replaced photo saved")},transparent?"image/png":"image/jpeg",.94)};
+  const pick=(file?:File)=>{
+    if(!file)return;
+    const uploadError=imageUploadError(file,lang);
+    if(uploadError){setStatus(uploadError);return}
+    const next=URL.createObjectURL(file);
+    const probe=new Image();
+    probe.onload=()=>{
+      const dimensionsError=imageDimensionsError(probe.naturalWidth,probe.naturalHeight,lang);
+      if(dimensionsError){URL.revokeObjectURL(next);setStatus(dimensionsError);return}
+      setUrl(old=>{if(old)URL.revokeObjectURL(old);return next});setShowOriginal(false);
+      setStatus(lang==="zh"?"正在分析连续背景区域…":"Detecting connected background…");
+    };
+    probe.onerror=()=>{URL.revokeObjectURL(next);setStatus(lang==="zh"?"照片读取失败，请换一张照片":"Could not read this image")};
+    probe.src=next;
+  };
+  useEffect(()=>{if(!url)return;let cancelled=false;setProcessing(true);const image=new Image();image.onload=()=>{requestAnimationFrame(()=>{if(cancelled)return;const canvas=canvasRef.current;if(!canvas)return;try{if(showOriginal){const ratio=Math.min(1,2200/Math.max(image.naturalWidth,image.naturalHeight));canvas.width=Math.round(image.naturalWidth*ratio);canvas.height=Math.round(image.naturalHeight*ratio);canvas.getContext("2d")?.drawImage(image,0,0,canvas.width,canvas.height);setStatus(lang==="zh"?"正在查看原图，点击“查看效果”返回":"Showing original · choose Result to return")}else{const result=renderBackgroundRemoval(image,canvas,background,tolerance,feather);const percent=Math.round(result.removed/(result.width*result.height)*100);setStatus(lang==="zh"?`处理完成 · 已识别约 ${percent}% 的边缘背景`:`Done · about ${percent}% of connected background detected`)}setProcessing(false)}catch(error){setProcessing(false);setStatus(error instanceof Error?error.message:(lang==="zh"?"处理失败，请更换照片重试":"Processing failed. Try another photo"))}})};image.onerror=()=>{setProcessing(false);setStatus(lang==="zh"?"照片读取失败，请换一张照片":"Could not read this image")};image.src=url;return()=>{cancelled=true}},[url,background,tolerance,feather,revision,showOriginal,lang]);
+  const save=()=>{const canvas=canvasRef.current;if(!canvas||!url){setStatus(lang==="zh"?"请先拍照或上传照片":"Take or upload a photo first");return}const transparent=background==="transparent";canvas.toBlob(blob=>{if(!blob)return;const href=URL.createObjectURL(blob);const link=document.createElement("a");link.download=`${lang==="zh"?"抠像换背景":"background_removed"}_${new Date().toISOString().slice(0,10)}.${transparent?"png":"jpg"}`;link.href=href;link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);setStatus(lang==="zh"?"换背景照片已保存":"Background-replaced photo saved")},transparent?"image/png":"image/jpeg",.94)};
   const isZh=lang==="zh";
   return <section className="matting-workspace">
-    <aside className="matting-controls"><div className="matting-mode-row two"><button onClick={()=>{setMattingMode("remove");setShowOriginal(false)}} className={mattingMode==="remove"?"active":""}>{isZh?"自动抠像":"Auto remove"}</button><button onClick={()=>{setMattingMode("keep");setShowOriginal(false)}} className={mattingMode==="keep"?"active":""}>{isZh?"保留原背景":"Keep original"}</button></div>
-      <span className="eyebrow">{isZh?"独立工具":"STANDALONE TOOL"}</span><h1>{isZh?"抠像换背景":"Remove background"}</h1><p className="tool-help">{isZh?"新版只移除与画面边缘连通的相近颜色，能更好保留人物内部细节。当前版本在浏览器内处理。":"The new detector removes only similar colours connected to image edges, preserving more subject detail. Processed in the browser in this version."}</p>
+    <aside className="matting-controls">
+      <span className="eyebrow">{isZh?"独立工具":"STANDALONE TOOL"}</span><h1>{isZh?"抠像换背景":"Remove background"}</h1><p className="tool-help">{isZh?"上传后直接自动抠像，再调整背景、识别范围和边缘柔化。当前版本在浏览器内处理。":"Upload to remove the background automatically, then adjust the replacement, detection range and feathering. Processing runs in the browser."}</p>
       <div className="capture-rule-card"><b><ScanLine size={15}/>{isZh?"推荐工作流程":"Recommended flow"}</b><span>{isZh?"1. 上传后先查看自动效果":"1. Upload and review the automatic result"}</span><span>{isZh?"2. 调整识别范围与柔化":"2. Adjust detection and feathering"}</span><small>{isZh?"背景越干净、与人物反差越大，效果越好":"Clean, contrasting backgrounds work best"}</small></div>
       <label className="field-label spaced">{isZh?"替换背景":"New background"}</label><div className="color-row matting-colors">{colors.map(color=><button key={color} className={background===color?"active":""} style={{background:color}} onClick={()=>setBackground(color)} aria-label={`${isZh?"背景":"Background"} ${color}`}/>)}<label className="eyedropper-button" onClick={()=>setShowOriginal(true)}><Pipette size={14}/><span>{isZh?"取色器":"Color picker"}</span><input type="color" value={background==="transparent"?"#ffffff":background} onChange={e=>setBackground(e.target.value)}/></label><button className={background==="transparent"?"transparent active":"transparent"} onClick={()=>setBackground("transparent")} aria-label={isZh?"透明背景":"Transparent background"}/></div>
       <div className="control-group"><div className="control-label"><b>{isZh?"背景识别范围":"Detection range"}</b><span>{tolerance}</span></div><Slider value={[tolerance]} min={12} max={180} onValueChange={v=>setTolerance(v[0])}/><small className="range-tip">{isZh?"残留背景多就调高；人物被误删就调低":"Raise for leftover background; lower if the subject is removed"}</small></div>
@@ -530,12 +660,13 @@ export function MattingTool({lang="zh"}:{lang?:Lang}){
       <div className={`compress-status ${processing?"is-processing":""}`}>{processing&&<span className="mini-spinner"/>}{status}</div><div className="matting-control-actions"><button onClick={()=>setShowOriginal(v=>!v)}>{showOriginal?(isZh?"查看效果":"Result"):(isZh?"对比原图":"Original")}</button><button onClick={()=>setRevision(v=>v+1)}><RotateCw size={14}/>{isZh?"重新处理":"Reprocess"}</button></div><button className="export-button" onClick={save} disabled={processing}><Download size={18}/>{isZh?"保存换背景照片":"Save result"}</button>
     </aside>
     <section className="matting-stage">
-      <div className="matting-actions"><button onClick={()=>cameraRef.current?.click()}><Camera size={16}/>{isZh?"拍照":"Camera"}</button><button onClick={()=>uploadRef.current?.click()}><Upload size={16}/>{isZh?"上传照片":"Upload"}</button></div>
+      <div className="matting-actions"><button onClick={()=>setCameraOpen(true)}><Camera size={16}/>{isZh?"拍照":"Camera"}</button><button onClick={()=>uploadRef.current?.click()}><Upload size={16}/>{isZh?"上传照片":"Upload"}</button></div>
       <div className={`matting-canvas-wrap ${background==="transparent"?"checker":""}`}>
-        {url?<canvas ref={canvasRef}/>:<button className="matting-empty" onClick={()=>uploadRef.current?.click()}><span><WandSparkles size={30}/></span><b>{isZh?"上传照片开始抠像":"Upload to remove background"}</b><small>{isZh?"支持渐变与轻微阴影背景，复杂场景请适当调节":"Handles mild gradients and shadows; adjust for complex scenes"}</small></button>}
+        {url?<canvas ref={canvasRef}/>:<button className="matting-empty" onClick={()=>uploadRef.current?.click()}><span><WandSparkles size={30}/></span><b>{isZh?"上传照片开始抠像":"Upload to remove background"}</b><small>{isZh?"支持 JPG、PNG、WebP，单张最大 30 MB":"JPG, PNG and WebP · up to 30 MB"}</small></button>}
       </div>
-      <input hidden ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>pick(e.target.files?.[0])}/><input hidden ref={cameraRef} type="file" accept="image/*" capture="user" onChange={e=>pick(e.target.files?.[0])}/>
+      <input hidden ref={uploadRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>pick(e.target.files?.[0])}/>
     </section>
+    <CameraCaptureDialog open={cameraOpen} lang={lang} onClose={()=>setCameraOpen(false)} onCapture={pick}/>
   </section>
 }
 

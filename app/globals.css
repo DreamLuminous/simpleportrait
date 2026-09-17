@@ -428,3 +428,247 @@ body:has(.app-shell[data-device-layout="tablet-portrait"]){overflow:hidden!impor
 .app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="professional"][data-workflow="full"]{grid-template-columns:minmax(300px,340px) minmax(500px,1fr) minmax(350px,390px)!important}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="professional"] .left-panel,.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="professional"] .stage-panel,.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="professional"] .right-panel{min-width:0!important}
 .landing footer>*{min-width:0}.landing footer a,.landing footer span{overflow-wrap:anywhere}
 @media(max-width:600px){.landing footer{display:grid!important;grid-template-columns:1fr!important;justify-items:start!important}.landing footer button{width:100%!important;margin:4px 0 0!important}}
+
+/* Multi-device stabilization pass: keep the canvas visible wherever visual controls affect it. */
+.save-actions{display:grid;gap:9px;margin-top:17px}.save-actions .export-button,.save-actions .print-button{position:static!important;inset:auto!important;width:100%!important;margin:0!important}.print-explain{display:block;color:#82918c;font-size:10px;line-height:1.55;text-align:center}.workspace[data-editor-mode="professional"] .print-explain{color:#91a69f}
+.size-unit-select{min-width:62px!important;width:auto!important;height:39px!important;padding:0 24px 0 8px!important;border:1px solid #d8e2de!important;border-radius:9px!important;background-color:#fbfdfc!important;color:#52645e!important;font-size:11px!important;font-weight:750!important}.size-limit-field>small,.range-safety-tip{display:block;margin-top:7px;color:#7a8b85;font-size:10px;line-height:1.5}.compress-range .size-unit-select{min-width:68px!important}.workspace[data-editor-mode="professional"] .size-unit-select{border-color:#3b5048!important;background-color:#1b2a25!important;color:#edf6f3!important}.workspace[data-editor-mode="professional"] .size-limit-field>small{color:#9db1aa!important}
+.workspace[data-editor-mode="professional"][data-workflow="full"] .right-panel>.save-actions{display:grid!important}.workspace[data-editor-mode="basic"][data-workflow="wizard"] .right-panel>.basic-detail-groups{display:block!important}.workspace[data-editor-mode="basic"][data-workflow="wizard"] .right-panel>.save-actions{display:none!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.save-actions{display:grid!important}.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.offline-note{display:flex!important}
+.workspace[data-editor-mode="basic"] .left-panel,.workspace[data-editor-mode="basic"] .stage-panel,.workspace[data-editor-mode="basic"] .right-panel{opacity:1!important;filter:none!important}
+
+/* The normal four-step flow has one consistent composition: task surface + contextual settings. */
+.workspace[data-editor-mode="basic"][data-workflow="wizard"] .right-panel>*:not(.panel-heading):not(.basic-detail-groups){display:none!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"] .right-panel>.gesture-card{display:flex!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"] .right-panel>.background-control,.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"] .right-panel>.appearance-control{display:block!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"] .right-panel>.appearance-actions{display:grid!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.output-controls{display:grid!important}.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.output-summary{display:block!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.save-actions{display:grid!important}.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel>.offline-note{display:flex!important}
+
+/* Desktop: detailed settings live in the right rail instead of wasting a full-width row. */
+.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"]{width:min(1440px,calc(100% - 32px))!important;display:grid!important;grid-template-columns:minmax(560px,1fr) minmax(340px,390px)!important;grid-template-rows:minmax(610px,1fr) 64px!important;overflow:hidden!important}
+.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"] .left-panel,.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"] .stage-panel{grid-column:1!important;grid-row:1!important;min-width:0!important}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"] .right-panel{display:block!important;grid-column:2!important;grid-row:1!important;min-width:0!important;overflow-y:auto!important;border-left:1px solid var(--line)!important;border-top:0!important}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"] .wizard-nav{grid-column:1/-1!important;grid-row:2!important}
+.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="0"] .left-panel{display:block!important}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="0"] .stage-panel{display:none!important}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"] .stage-panel,.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"] .stage-panel,.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .stage-panel{display:flex!important}
+.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"] .basic-detail-groups{margin-top:16px}.app-shell[data-device-layout="desktop"] .workspace[data-editor-mode="basic"] .canvas-stage{min-height:500px}
+
+/* Phone: Basic + guided only. Steps 3 and 4 both retain a real canvas preview. */
+.app-shell[data-device-layout="phone"] .mode-choice{display:none!important}.app-shell[data-device-layout="phone"] .guided-mode-lock{display:flex!important}
+.app-shell[data-device-layout="phone"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="0"]{grid-template-rows:minmax(0,1fr) var(--device-nav)!important}.app-shell[data-device-layout="phone"] .workspace[data-step="0"] .left-panel{grid-column:1!important;grid-row:1!important}.app-shell[data-device-layout="phone"] .workspace[data-step="0"] .right-panel{display:none!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="1"]{grid-template-rows:minmax(0,1fr) auto var(--device-nav)!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"],.app-shell[data-device-layout="phone"] .workspace[data-step="3"]{grid-template-rows:minmax(220px,44%) minmax(0,1fr) var(--device-nav)!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-panel,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-panel{display:flex!important;grid-column:1!important;grid-row:1!important;height:auto!important;min-height:0!important;overflow:hidden!important;padding:7px 10px 5px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .right-panel,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .right-panel{display:block!important;grid-column:1!important;grid-row:2!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding:12px 14px 20px!important;border:0!important;border-top:1px solid var(--line)!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .wizard-nav,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .wizard-nav{grid-row:3!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head{min-height:35px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head .eyebrow,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head .eyebrow,.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-status,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-status{display:none!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head h2,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head h2{font-size:13px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .canvas-stage,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .canvas-stage{min-height:0!important;flex:1!important;padding:5px 26px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .photo-frame,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .photo-frame{height:100%!important;max-height:100%!important;max-width:100%!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-zone,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-zone{min-width:0!important;width:100%!important;padding:9px!important;gap:6px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-zone>span:not(.upload-icon),.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-zone>span:not(.upload-icon),.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-zone small,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-zone small{display:none!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-icon,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-icon{width:44px!important;height:44px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-actions,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-actions{margin-top:3px!important}.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .upload-actions button,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .upload-actions button{min-height:36px!important;padding:0 10px!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .right-panel>.panel-heading{display:flex!important}.app-shell[data-device-layout="phone"] .workspace .save-actions{position:static!important;display:grid!important;grid-template-columns:1fr!important;gap:8px!important;margin-top:14px!important}.app-shell[data-device-layout="phone"] .workspace .save-actions .export-button,.app-shell[data-device-layout="phone"] .workspace .save-actions .print-button{min-height:46px!important}.app-shell[data-device-layout="phone"] .workspace .print-explain{padding:0 8px!important}
+
+/* Portrait tablet: guided mode gets a split preview; Professional remains available without overlap. */
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="0"]{grid-template-columns:minmax(0,1fr) minmax(300px,38%)!important;grid-template-rows:minmax(0,1fr) var(--device-nav)!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="0"] .left-panel{grid-column:1!important;grid-row:1!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="0"] .right-panel{display:block!important;grid-column:2!important;grid-row:1!important;overflow-y:auto!important;border-left:1px solid var(--line)!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="0"] .wizard-nav{grid-column:1/-1!important;grid-row:2!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="2"],.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="3"]{grid-template-rows:minmax(390px,48%) minmax(0,1fr) var(--device-nav)!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="2"] .stage-panel,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="3"] .stage-panel{display:flex!important;grid-column:1!important;grid-row:1!important;height:auto!important;min-height:0!important;overflow:hidden!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="2"] .right-panel,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="3"] .right-panel{display:block!important;grid-column:1!important;grid-row:2!important;min-height:0!important;overflow-y:auto!important;padding:18px clamp(24px,5vw,52px)!important;border:0!important;border-top:1px solid var(--line)!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="2"] .wizard-nav,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-step="3"] .wizard-nav{grid-row:3!important}
+body:has(.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"]){overflow:auto!important}.app-shell[data-device-layout="tablet-portrait"]:has(.workspace[data-editor-mode="professional"]){height:auto!important;max-height:none!important;overflow:visible!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"][data-workflow="full"]{width:min(1040px,calc(100% - 18px))!important;height:auto!important;min-height:0!important;margin:10px auto 24px!important;display:grid!important;grid-template-columns:minmax(270px,35%) minmax(0,1fr)!important;grid-template-rows:auto auto auto!important;overflow:visible!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .pro-workbench-head{grid-column:1/-1!important;grid-row:1!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .left-panel{grid-column:1!important;grid-row:2!important;position:static!important;align-self:start!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .stage-panel{grid-column:2!important;grid-row:2!important;position:static!important;align-self:start!important;min-height:620px!important;height:min(720px,calc(var(--app-viewport-height,100dvh) - 170px))!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel{grid-column:1/-1!important;grid-row:3!important;position:static!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0 22px!important;overflow:visible!important;border-left:0!important;border-top:1px solid #2b3a35!important}.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel>.panel-heading,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel>.output-controls,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel>.output-summary,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel>.save-actions,.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .right-panel>.offline-note{grid-column:1/-1!important}
+
+/* Landscape tablets: one real three-column workbench, without the former empty lower canvas row. */
+.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"][data-workflow="full"]{width:min(1260px,calc(100% - 16px))!important;display:grid!important;grid-template-columns:minmax(250px,28%) minmax(360px,1fr) minmax(285px,31%)!important;grid-template-rows:auto auto!important;align-items:start!important;overflow:visible!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"] .pro-workbench-head{grid-column:1/-1!important;grid-row:1!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"] .left-panel{grid-column:1!important;grid-row:2!important;position:static!important;align-self:start!important;padding:18px!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"] .stage-panel{grid-column:2!important;grid-row:2!important;position:static!important;align-self:start!important;min-height:0!important;height:min(760px,calc(var(--app-viewport-height,100dvh) - 160px))!important;padding:18px!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"] .right-panel{grid-column:3!important;grid-row:2!important;position:static!important;display:block!important;align-self:start!important;overflow:visible!important;border-left:1px solid #2b3a35!important;border-top:0!important;padding:18px!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="professional"] .right-panel>*{grid-column:auto!important}
+.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .stage-panel{display:flex!important;grid-column:1!important;grid-row:1!important}.app-shell[data-device-layout="tablet-landscape"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .right-panel{display:block!important;grid-column:2!important;grid-row:1!important}
+
+/* Camera permission and capture surface shared by ID photo and matting tools. */
+.camera-dialog-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:rgba(5,18,14,.72);backdrop-filter:blur(8px)}.camera-dialog-card{width:min(720px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:20px;border:1px solid rgba(255,255,255,.22);border-radius:20px;background:#fff;box-shadow:0 30px 90px rgba(0,0,0,.34)}.camera-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.camera-dialog-head>button{width:38px;height:38px;border:1px solid #d8e4e0;border-radius:10px;background:#f7faf9;color:#52665f;font-size:24px;line-height:1;cursor:pointer}.camera-preview{margin-top:16px;overflow:hidden;aspect-ratio:4/3;border-radius:14px;background:#101916}.camera-preview video{width:100%;height:100%;display:block;object-fit:cover;transform:scaleX(-1)}.camera-message{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#fff4e7;color:#915b19;font-size:12px;line-height:1.55}.camera-message.ready{background:#eaf8f3;color:#176c53}.camera-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.camera-dialog-actions button{min-height:44px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #cfe0da;border-radius:11px;background:#fff;color:#376b5a;font-weight:750;cursor:pointer}.camera-dialog-actions button:last-child{border-color:#18a77b;background:#18a77b;color:#fff}.camera-dialog-actions button:disabled{opacity:.42;cursor:not-allowed}.camera-dialog-card>small{display:block;margin-top:10px;color:#7a8984;font-size:11px;line-height:1.5;text-align:center}
+@media(max-width:600px){.camera-dialog-backdrop{padding:0;align-items:end}.camera-dialog-card{width:100%;max-height:94dvh;border-radius:20px 20px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom,0px))}.camera-preview{aspect-ratio:3/4}.camera-dialog-actions{position:sticky;bottom:0;padding-top:8px;background:#fff}}
+
+/* Homepage typography: strong hierarchy without the oversized two-line headline. */
+.hero-copy h1{max-width:720px;font-size:clamp(42px,4.8vw,68px)!important;line-height:1.08!important;letter-spacing:-.045em!important}.hero-copy>p{max-width:700px;font-size:16px!important;line-height:1.72!important}.landing-hero{min-height:620px}
+@media(max-width:600px){.hero-copy h1{font-size:clamp(34px,10.5vw,43px)!important;line-height:1.1!important;letter-spacing:-.04em!important}.hero-copy>p{font-size:15px!important;line-height:1.68!important}}
+
+/* On narrow phones, reserve a fixed compact preview so matting/export controls remain usable in the same viewport. */
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"],.app-shell[data-device-layout="phone"] .workspace[data-step="3"]{grid-template-rows:clamp(210px,32dvh,280px) minmax(0,1fr) var(--device-nav)!important}
+.app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-panel,.app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-panel{height:clamp(210px,32dvh,280px)!important;max-height:clamp(210px,32dvh,280px)!important}
+
+/* Override legacy step selectors with the complete state tuple; hidden panels must never reserve a grid track. */
+html body .app-shell .workspace .left-panel[hidden],html body .app-shell .workspace .stage-panel[hidden],html body .app-shell .workspace .right-panel[hidden]{display:none!important}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"],html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:min(32dvh,270px) minmax(0,1fr) var(--device-nav)!important;align-content:stretch!important}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.stage-panel,html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.stage-panel{grid-column:1!important;grid-row:1!important;height:min(32dvh,270px)!important;max-height:min(32dvh,270px)!important;min-height:0!important}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.right-panel,html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.right-panel{grid-column:1!important;grid-row:2!important;height:auto!important;max-height:none!important;min-height:0!important}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.wizard-nav,html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.wizard-nav{grid-column:1!important;grid-row:3!important}
+
+/* Portrait-tablet Professional: left specifications span the flow; right controls continue immediately below the canvas. */
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"][data-workflow="full"]{grid-template-columns:minmax(270px,35%) minmax(0,1fr)!important;grid-template-rows:auto auto auto!important;align-items:start!important}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.left-panel{grid-column:1!important;grid-row:2 / span 2!important;align-self:stretch!important}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.stage-panel{grid-column:2!important;grid-row:2!important;align-self:start!important}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.right-panel{grid-column:2!important;grid-row:3!important;display:block!important;align-self:start!important;padding:20px!important;border-left:1px solid #2b3a35!important;border-top:1px solid #2b3a35!important}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.right-panel>*{grid-column:auto!important}
+
+/* Precision responsive pass: consistent guided canvases, external canvas lock, and portrait-tablet density. */
+.stage-tools .canvas-lock-toggle{position:static!important;z-index:auto!important;top:auto!important;right:auto!important;min-height:34px!important;padding:0 10px!important;border:1px solid rgba(24,126,94,.28)!important;border-radius:9px!important;background:rgba(255,255,255,.78)!important;color:#176f55!important;box-shadow:none!important;backdrop-filter:none!important;white-space:nowrap!important}
+.stage-tools .canvas-lock-toggle.locked{border-color:#176f55!important;background:#176f55!important;color:#fff!important}
+.photo-frame>.canvas-lock-toggle{display:none!important}
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"] .basic-detail-groups,
+.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"] .basic-detail-groups{display:none!important}
+
+/* Phones and large phones always use the guided editor. Steps 2–4 share one dynamic canvas ratio. */
+html body .app-shell[data-device-layout="phone"] .mode-choice{display:none!important}
+html body .app-shell[data-device-layout="phone"] .guided-mode-lock{display:flex!important}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"],
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"],
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:minmax(0,1fr) clamp(92px,18%,150px) var(--device-nav)!important;
+  align-content:stretch!important;
+}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"]>.stage-panel,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.stage-panel,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.stage-panel{
+  grid-column:1!important;
+  grid-row:1!important;
+  display:flex!important;
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding:8px 10px 6px!important;
+}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"]>.right-panel,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.right-panel,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.right-panel{
+  grid-column:1!important;
+  grid-row:2!important;
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  max-height:none!important;
+  min-height:0!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain!important;
+  padding:12px 14px 20px!important;
+  border:0!important;
+  border-top:1px solid var(--line)!important;
+}
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"]>.wizard-nav,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"]>.wizard-nav,
+html body .app-shell[data-device-layout="phone"] section.workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]>.wizard-nav{grid-column:1!important;grid-row:3!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .stage-head,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head{display:flex!important;min-height:42px!important;padding:5px 4px 7px!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .stage-head .eyebrow,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head .eyebrow,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head .eyebrow{display:none!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .stage-head h2,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-head h2,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-head h2{font-size:13px!important;line-height:1.35!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .right-panel>.panel-heading,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .right-panel>.panel-heading{display:none!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .stage-tools,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-tools,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-tools{display:flex!important;align-items:center!important;gap:5px!important}
+html body .app-shell[data-device-layout="phone"] .workspace .stage-tools .canvas-lock-toggle{min-height:32px!important;padding:0 8px!important;font-size:11px!important}
+html body .app-shell[data-device-layout="phone"] .workspace .stage-tools .stage-reset-button{width:32px!important;min-width:32px!important;min-height:32px!important;padding:0!important;font-size:0!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .canvas-stage,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .canvas-stage,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .canvas-stage{min-height:0!important;height:auto!important;flex:1 1 0!important;padding:6px 28px!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .photo-frame,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .photo-frame,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .photo-frame{width:auto!important;height:100%!important;max-width:100%!important;max-height:100%!important;min-height:0!important;aspect-ratio:var(--photo-aspect,3/4)!important;border:5px solid #fff!important;border-radius:8px!important;box-shadow:0 12px 34px rgba(27,72,58,.14)!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"] .stage-status,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"] .stage-status,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"] .stage-status{display:flex!important;min-height:30px!important;padding:5px 4px 0!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"]:not(:has(canvas.visible)) .upload-zone,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"]:not(:has(canvas.visible)) .upload-zone,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"]:not(:has(canvas.visible)) .upload-zone{flex-direction:column!important;justify-content:center!important;gap:7px!important;padding:10px!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"]:not(:has(canvas.visible)) .upload-zone>span:not(.upload-icon),
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"]:not(:has(canvas.visible)) .upload-zone>span:not(.upload-icon),
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"]:not(:has(canvas.visible)) .upload-zone>span:not(.upload-icon),
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"]:not(:has(canvas.visible)) .upload-zone small,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"]:not(:has(canvas.visible)) .upload-zone small,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"]:not(:has(canvas.visible)) .upload-zone small{display:block!important}
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="1"]:not(:has(canvas.visible)) .upload-actions,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="2"]:not(:has(canvas.visible)) .upload-actions,
+html body .app-shell[data-device-layout="phone"] .workspace[data-step="3"]:not(:has(canvas.visible)) .upload-actions{margin:5px 0 0!important}
+
+/* Portrait tablets retain both modes, with a compact non-overlapping header and viewport-aware workbench. */
+.app-shell[data-device-layout="tablet-portrait"]{--device-header:72px}
+.app-shell[data-device-layout="tablet-portrait"] .topbar{grid-template-columns:minmax(180px,1fr) auto!important;gap:10px!important;padding:0 14px!important}
+.app-shell[data-device-layout="tablet-portrait"] .brand-tag{display:none!important}
+.app-shell[data-device-layout="tablet-portrait"] .brand{font-size:18px!important;white-space:nowrap!important}
+.app-shell[data-device-layout="tablet-portrait"] .top-actions{justify-content:flex-end!important;gap:6px!important}
+.app-shell[data-device-layout="tablet-portrait"] .compact-language{min-width:104px!important;padding:0 8px!important}
+.app-shell[data-device-layout="tablet-portrait"] .mode-switch button{min-width:82px!important;padding:0 8px!important}
+.app-shell[data-device-layout="tablet-portrait"] .settings-button{width:40px!important;min-width:40px!important;padding:0!important;font-size:0!important}
+.app-shell[data-device-layout="tablet-portrait"] .settings-button svg{display:block!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"],
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="2"],
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="3"]{grid-template-rows:minmax(380px,56%) minmax(0,1fr) var(--device-nav)!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"][data-workflow="wizard"][data-step="1"]{grid-template-rows:minmax(440px,70%) minmax(0,1fr) var(--device-nav)!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"] .stage-tools{display:flex!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="basic"] .canvas-stage{padding:14px clamp(40px,8vw,76px)!important}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"][data-workflow="full"]{
+  width:min(980px,calc(100% - 20px))!important;
+  grid-template-columns:minmax(292px,37%) minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto!important;
+  margin:10px auto 28px!important;
+  align-items:start!important;
+  overflow:hidden!important;
+}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.left-panel{
+  grid-column:1!important;
+  grid-row:2 / span 2!important;
+  align-self:stretch!important;
+  padding:20px 18px!important;
+  border-right:1px solid #2b3a35!important;
+}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.stage-panel{
+  grid-column:2!important;
+  grid-row:2!important;
+  align-self:start!important;
+  width:100%!important;
+  height:clamp(520px,61dvh,680px)!important;
+  min-height:520px!important;
+  padding:18px!important;
+  border-left:0!important;
+}
+html body .app-shell[data-device-layout="tablet-portrait"] section.workspace[data-editor-mode="professional"]>.right-panel{
+  grid-column:2!important;
+  grid-row:3!important;
+  display:block!important;
+  align-self:start!important;
+  width:100%!important;
+  padding:18px!important;
+  border-left:0!important;
+  border-top:1px solid #2b3a35!important;
+  overflow:visible!important;
+}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .pro-workbench-head{padding:15px 18px!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .pro-workbench-head h1{font-size:18px!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .pro-workbench-head p{max-width:52%;font-size:11px!important;line-height:1.45!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .stage-head{gap:10px!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .stage-tools{display:flex!important;flex-wrap:wrap!important;justify-content:flex-end!important}
+.app-shell[data-device-layout="tablet-portrait"] .workspace[data-editor-mode="professional"] .canvas-stage{min-height:0!important;padding:16px 42px!important}
+
+@media(max-width:760px){
+  html body .app-shell[data-device-layout="phone"] .top-actions{grid-template-columns:auto minmax(0,1fr) 40px!important}
+  html body .app-shell[data-device-layout="tablet-portrait"]{--device-header:72px!important}
+  html body .app-shell[data-device-layout="tablet-portrait"] .topbar{
+    height:var(--device-header)!important;
+    min-height:var(--device-header)!important;
+    grid-template-columns:minmax(180px,1fr) auto!important;
+    grid-template-rows:1fr!important;
+    align-content:center!important;
+    padding:0 14px!important;
+  }
+  html body .app-shell[data-device-layout="tablet-portrait"] .brand{
+    grid-column:1!important;
+    grid-row:1!important;
+    width:auto!important;
+    min-width:0!important;
+    font-size:18px!important;
+  }
+  html body .app-shell[data-device-layout="tablet-portrait"] .top-actions{
+    grid-column:2!important;
+    grid-row:1!important;
+    width:auto!important;
+    min-width:0!important;
+    display:flex!important;
+    justify-content:flex-end!important;
+    gap:6px!important;
+  }
+  html body .app-shell[data-device-layout="tablet-portrait"] .compact-language{display:flex!important;width:104px!important;min-width:104px!important}
+  html body .app-shell[data-device-layout="tablet-portrait"] .mode-choice{display:block!important;min-width:0!important}
+  html body .app-shell[data-device-layout="tablet-portrait"] .mode-switch{width:auto!important;display:grid!important;grid-template-columns:repeat(2,82px)!important}
+}

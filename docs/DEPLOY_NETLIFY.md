@@ -2,6 +2,8 @@
 
 对应版本：SimplePortrait 简照 v0.2.2
 
+> 更新状态：Netlify 当前暂停更新，本轮不生成 v0.2.3 Netlify 上传目录。现有 Netlify 站点继续保留 v0.2.2；恢复发布前请不要把 1Panel 包误当作 Netlify 发布计划的一部分。
+
 ## 直接上传
 
 将阶段成果目录中的整个 `Netlify上传` 文件夹拖入 Netlify Drop。该文件夹根目录已经包含 `index.html`，不需要再选择里面的子目录。

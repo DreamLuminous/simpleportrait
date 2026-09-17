@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -41,6 +42,10 @@ async function evaluate(expression) {
   const response = await command("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
   if (response.exceptionDetails) throw new Error(response.exceptionDetails.text || "Browser evaluation failed");
   return response.result.value;
+}
+async function screenshot(name) {
+  const result = await command("Page.captureScreenshot", { format:"png", captureBeyondViewport:false });
+  writeFileSync(new URL(`../.tmp-${name}.png`, import.meta.url), Buffer.from(result.data, "base64"));
 }
 async function click(label) {
   const result = await evaluate(`(() => {
@@ -144,6 +149,8 @@ async function snapshot() {
       templateLibrary: Boolean(document.querySelector(".spec-library")),
       colorPickerCount: document.querySelectorAll(".eyedropper-button input[type=color]").length,
       iconButtonDisplay: getComputedStyle(document.querySelector(".settings-button")).display,
+      lockInFrame: Boolean(document.querySelector(".photo-frame > .canvas-lock-toggle")),
+      lockInToolbar: Boolean(document.querySelector(".stage-tools > .canvas-lock-toggle")),
       pageWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,
     };
@@ -186,7 +193,7 @@ try {
     const ready = await evaluate("Boolean(document.querySelector('.workspace'))");
     if (!ready) throw new Error("App is not ready");
   });
-  await evaluate("localStorage.clear(); sessionStorage.clear(); location.reload(); true");
+  await evaluate(`(async()=>{localStorage.clear();sessionStorage.clear();if('serviceWorker' in navigator){const registrations=await navigator.serviceWorker.getRegistrations();await Promise.all(registrations.map(registration=>registration.unregister()))}if('caches' in window){const names=await caches.keys();await Promise.all(names.map(name=>caches.delete(name)))}location.reload();return true})()`);
   await retry(async () => {
     const ready = await evaluate("document.readyState === 'complete' && Boolean(document.querySelector('.workspace'))");
     if (!ready) throw new Error("Reloading app");
@@ -196,12 +203,13 @@ try {
   let state = await snapshot();
   assert(state.mode === "basic" && state.workflow === "wizard" && state.step === 0, "Default must be the Basic four-step guide");
   assert(state.progress && state.wizardNav && !state.proNav && !state.workflowSwitch && !state.skipButton, "Basic navigation contains obsolete mode or skip controls");
-  assert(visible(state.left) && hidden(state.stage) && hidden(state.right), "Basic step 1 must show only size selection and its details");
+  assert(visible(state.left) && hidden(state.stage) && visible(state.right), "Basic step 1 must show size selection with details in the right rail");
   assert(state.basicDetails !== "none" && state.visibleDetails === 1 && state.openDetails === 0, "Basic step 1 details are not logically scoped and folded");
   assert(state.iconButtonDisplay === "flex", "Header icon and label alignment is wrong");
   assert(state.templateLibrary && !state.formatDisabled, "CET quick preset is locked or the folded template library is missing");
   assert(!state.filenamePlaceholder.includes("身份证"), "Filename is still presented as a required identity-card number");
   assert(!state.modeChoiceText.includes("推荐电脑") && !state.modeChoiceText.includes("完整工作台"), "Obsolete Professional mode subtitle is still visible");
+  await screenshot("desktop-basic-layout");
   await clickSpec("一寸");
   await click("下一步 →");
   await uploadSyntheticPortrait();
@@ -240,7 +248,7 @@ try {
 
   await click("下一步 →");
   state = await snapshot();
-  assert(state.step === 2 && state.rightTitle === "抠图与背景" && state.basicDetails === "none", "Basic step 3 content or details are wrong");
+  assert(state.step === 2 && state.rightTitle === "抠图与背景" && state.basicDetails === "none", "Basic step 3 must open directly on matting instead of a folded settings group");
   assert(state.background !== "none" && state.appearance !== "none" && !state.transform && state.output === "none", "Basic step 3 leaked unrelated controls");
   assert(!state.skipButton, "Basic step 3 still contains the obsolete skip button");
   const corner = await evaluate("Array.from(document.querySelector('.photo-frame canvas').getContext('2d').getImageData(0,0,1,1).data)");
@@ -253,27 +261,63 @@ try {
 
   await click("下一步 →");
   state = await snapshot();
-  assert(state.step === 3 && state.rightTitle === "检查与保存" && state.basicDetails === "none", "Basic final step still repeats detailed settings");
-  assert(hidden(state.stage) && hidden(state.left) && visible(state.right), "Basic final step must be export-only without the photo preview");
+  assert(state.step === 3 && state.rightTitle === "检查与保存" && state.basicDetails === "none", "Basic final step must open directly on export settings");
+  const finalSaveButtonVisible = await evaluate("(() => { const button = [...document.querySelectorAll('button')].find(node => node.textContent.includes('保存电子证件照')); if (!button) return false; const style = getComputedStyle(button); const rect = button.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0; })()");
+  assert(finalSaveButtonVisible, "Basic final step is missing the Save ID photo button");
+  assert(visible(state.stage) && hidden(state.left) && visible(state.right), "Basic final step must retain the photo preview beside export controls");
   assert(state.output !== "none" && !state.transform && state.background === "none" && state.appearance === "none", "Basic final step leaked editing controls");
   assert(state.selectedSpec === "一寸" && state.widthPx === 295 && !state.skipButton, `Basic flow lost data or retained a skip button: ${JSON.stringify({selectedSpec:state.selectedSpec,widthPx:state.widthPx,skipButton:state.skipButton})}`);
   assert(state.colorPickerCount > 0, "ID-photo background controls are missing the colour picker");
   await evaluate(`(() => {
-    const min = document.querySelector('[aria-label="minimum KB"]');
+    const min = document.querySelector('[aria-label="minimum file size"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(min, "40");
     min.dispatchEvent(new Event("input", { bubbles:true })); min.dispatchEvent(new Event("change", { bubbles:true }));
     return true;
   })()`);
   await wait(100);
   await evaluate(`(() => {
-    const max = document.querySelector('[aria-label="maximum KB"]');
+    const max = document.querySelector('[aria-label="maximum file size"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(max, "30");
     max.dispatchEvent(new Event("input", { bubbles:true })); max.dispatchEvent(new Event("change", { bubbles:true }));
     return true;
   })()`);
   await wait(200);
-  const correctedRange = await evaluate(`({min:Number(document.querySelector('[aria-label="minimum KB"]').value),max:Number(document.querySelector('[aria-label="maximum KB"]').value)})`);
+  const correctedRange = await evaluate(`({min:Number(document.querySelector('[aria-label="minimum file size"]').value),max:Number(document.querySelector('[aria-label="maximum file size"]').value)})`);
   assert(correctedRange.min === 25 && correctedRange.max === 30, `File range did not auto-correct: ${JSON.stringify(correctedRange)}`);
+  await evaluate(`(() => {
+    const max = document.querySelector('[aria-label="maximum file size"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(max, "10");
+    max.dispatchEvent(new Event("input", { bubbles:true })); max.dispatchEvent(new Event("change", { bubbles:true }));
+    return true;
+  })()`);
+  await wait(100);
+  let orderedRange = await evaluate(`({min:Number(document.querySelector('[aria-label="minimum file size"]').value),max:Number(document.querySelector('[aria-label="maximum file size"]').value)})`);
+  assert(orderedRange.min === 5 && orderedRange.max === 10, `Maximum-first range correction failed: ${JSON.stringify(orderedRange)}`);
+  await evaluate(`(() => {
+    const min = document.querySelector('[aria-label="minimum file size"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(min, "15");
+    min.dispatchEvent(new Event("input", { bubbles:true })); min.dispatchEvent(new Event("change", { bubbles:true }));
+    return true;
+  })()`);
+  await wait(100);
+  orderedRange = await evaluate(`({min:Number(document.querySelector('[aria-label="minimum file size"]').value),max:Number(document.querySelector('[aria-label="maximum file size"]').value)})`);
+  assert(orderedRange.min === 15 && orderedRange.max === 20, `Minimum-first range correction failed: ${JSON.stringify(orderedRange)}`);
+  await evaluate(`(() => {
+    const unit = document.querySelector('[aria-label="file size unit"]');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(unit, "MB");
+    unit.dispatchEvent(new Event("change", { bubbles:true }));
+    return true;
+  })()`);
+  await wait(100);
+  await evaluate(`(() => {
+    const max = document.querySelector('[aria-label="maximum file size"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(max, "99");
+    max.dispatchEvent(new Event("input", { bubbles:true })); max.dispatchEvent(new Event("change", { bubbles:true }));
+    return true;
+  })()`);
+  await wait(100);
+  const mbRange = await evaluate(`({unit:document.querySelector('[aria-label="file size unit"]').value,max:Number(document.querySelector('[aria-label="maximum file size"]').value),maxAllowed:Number(document.querySelector('[aria-label="maximum file size"]').max),step:Number(document.querySelector('[aria-label="maximum file size"]').step)})`);
+  assert(mbRange.unit === "MB" && mbRange.max === 20 && mbRange.maxAllowed === 20 && mbRange.step === .01, `MB range limit failed: ${JSON.stringify(mbRange)}`);
   assertNoOverlap([state.left, state.stage, state.right], "Basic final step");
 
   await click("专业模式");
@@ -318,15 +362,45 @@ try {
   assert(state.deviceLayout === "phone" && state.guidedOnly && state.guidedLock, "Phone is not locked to the guided workflow");
   const mobileModeButtons = await evaluate("document.querySelectorAll('.mode-choice button').length");
   assert(mobileModeButtons === 0 && state.mode === "basic" && state.workflow === "wizard", "Phone still exposes another editor mode");
+  assert(state.lockInToolbar && !state.lockInFrame, "Photo lock must stay outside the image on every device");
+  const phoneCompositionStageHeight=state.stage.height;
+  await screenshot("phone-guided-layout");
+  await click("下一步 →");
+  state=await snapshot();
+  assert(state.step===2&&visible(state.stage)&&visible(state.right),"Phone matting step lost its canvas or controls");
+  assert(Math.abs(state.stage.height-phoneCompositionStageHeight)<=2, `Phone matting canvas changed height: ${state.stage.height}/${phoneCompositionStageHeight}`);
+  await screenshot("phone-matting-layout");
+  await click("下一步 →");
+  state=await snapshot();
+  assert(state.step===3&&visible(state.stage)&&visible(state.right),"Phone export step lost the live preview or controls");
+  assert(Math.abs(state.stage.height-phoneCompositionStageHeight)<=2, `Phone export canvas changed height: ${state.stage.height}/${phoneCompositionStageHeight}`);
+  await screenshot("phone-export-layout");
+  await click("← 上一步");
+  await click("← 上一步");
+
+  await command("Emulation.setDeviceMetricsOverride", { width:744, height:1133, deviceScaleFactor:2, mobile:true });
+  await wait(350);
+  state = await snapshot();
+  assert(state.deviceLayout === "tablet-portrait" && !state.guidedOnly, "Small portrait tablet was mistaken for a phone");
+  const compactTabletHeader=await evaluate(`(()=>{const h=document.querySelector(".topbar").getBoundingClientRect();const b=document.querySelector(".brand").getBoundingClientRect();const a=document.querySelector(".top-actions").getBoundingClientRect();return{headerLeft:h.left,headerRight:h.right,brandRight:b.right,actionsLeft:a.left,actionsRight:a.right}})()`);
+  assert(compactTabletHeader.brandRight<=compactTabletHeader.actionsLeft+1&&compactTabletHeader.actionsRight<=compactTabletHeader.headerRight+1, `Small portrait tablet header overlaps: ${JSON.stringify(compactTabletHeader)}`);
+  await screenshot("tablet-portrait-compact-header");
 
   await command("Emulation.setDeviceMetricsOverride", { width:834, height:1112, deviceScaleFactor:2, mobile:true });
   await wait(350);
   state = await snapshot();
-  assert(state.deviceLayout === "tablet-portrait" && state.guidedOnly && state.guidedLock, "Portrait tablet is not using its dedicated guided layout");
-  assert(state.mode === "basic" && state.workflow === "wizard" && state.pageWidth <= state.viewportWidth, "Portrait tablet overflows or exposes Professional mode");
+  assert(state.deviceLayout === "tablet-portrait" && !state.guidedOnly && !state.guidedLock, "Portrait tablet is incorrectly locked like a phone");
+  assert(state.mode === "basic" && state.workflow === "wizard" && state.pageWidth <= state.viewportWidth, "Portrait tablet guided layout overflows");
   assertNoOverlap([state.left, state.stage, state.right], "Portrait tablet guided layout");
   const portraitNav=await evaluate(`(()=>{const r=document.querySelector(".wizard-nav").getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:window.visualViewport?.height||window.innerHeight}})()`);
   assert(portraitNav.top>=0&&portraitNav.bottom<=portraitNav.height+1, `Portrait tablet navigation is obscured: ${JSON.stringify(portraitNav)}`);
+  await click("专业模式");
+  state = await snapshot();
+  assert(state.mode === "professional" && state.workflow === "full", "Portrait tablet cannot enable the Professional workbench");
+  assert(state.pageWidth <= state.viewportWidth, `Portrait tablet Professional mode overflows: ${state.pageWidth}/${state.viewportWidth}`);
+  assertNoOverlap([state.left, state.stage, state.right], "Portrait tablet Professional workbench");
+  await screenshot("tablet-portrait-professional");
+  await click("普通模式");
 
   await command("Emulation.setDeviceMetricsOverride", { width:1112, height:834, deviceScaleFactor:1.5, mobile:true });
   await wait(350);
@@ -338,6 +412,7 @@ try {
   state = await snapshot();
   assert(state.mode === "professional" && state.workflow === "full", "Landscape tablet cannot enable the Professional workbench");
   assertNoOverlap([state.left, state.stage, state.right], "Landscape tablet Professional workbench");
+  await screenshot("tablet-landscape-professional");
 
   await command("Emulation.setDeviceMetricsOverride", { width:1440, height:900, deviceScaleFactor:1, mobile:false });
   await wait(350);
@@ -346,7 +421,16 @@ try {
   assert(state.pageWidth <= state.viewportWidth, `Desktop workbench overflows horizontally: ${state.pageWidth}/${state.viewportWidth}`);
   assertNoOverlap([state.left, state.stage, state.right], "Desktop complete workbench");
 
-  console.log("Editor UX browser test passed: desktop, phone, portrait tablet and landscape tablet layouts; guided lock; export-only final step; matting canvas; mouse and touch interactions.");
+  await command("Page.navigate", {url:"http://localhost:5173/tools/matting/"});
+  await retry(async()=>{if(!await evaluate("Boolean(document.querySelector('.matting-workspace'))"))throw new Error("Matting tool is not ready")});
+  await wait(350);
+  const standaloneModes=await evaluate("document.querySelectorAll('.matting-mode-row').length");
+  assert(standaloneModes===0,"Standalone matting tool still shows redundant Auto/Keep mode buttons");
+  await click("拍照");
+  assert(await evaluate("Boolean(document.querySelector('.camera-dialog-card'))"),"Shared camera permission dialog did not open in the matting tool");
+  assert((await evaluate("document.querySelector('.camera-message')?.textContent.length||0"))>0,"Camera dialog does not explain permission or availability state");
+
+  console.log("Editor UX browser test passed: desktop, phone, portrait tablet and landscape tablet layouts; phone-only guided lock; retained editing previews; matting canvas; mouse and touch interactions.");
 } finally {
   try { socket?.close(); } catch {}
   browser.kill();
