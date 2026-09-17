@@ -83,10 +83,9 @@ npm run build
 
 当前部署状态：
 
-- 1Panel：更新到 v0.2.3，使用 `E:\AllCode\GitHub\Project\V0.2.3\1Panel服务器\网站根目录`。
+- 1Panel：更新到 v0.2.3。
 - Netlify：暂停更新，保持 v0.2.2，本轮不生成上传目录。
 - GitHub 项目网页/在线预览：暂时冻结在 v0.2.2。
-- GitHub 仓库源码：可由维护者通过 GitHub Desktop 更新到 v0.2.3。
 
 ## 开源项目结构
 
@@ -182,7 +181,7 @@ npm run build:netlify
 - `0.2.0`：较大功能增强，例如更多平台适配、更稳定的图像处理和更完整的规格包。
 - `1.0.0`：核心流程、隐私说明、发布平台和主要兼容性达到稳定承诺后再考虑。
 
-当前源码版本 `v0.2.3` 对应 [CHANGELOG.md](CHANGELOG.md) 中的文件安全与多端导出修订记录。建议以后每次准备公开更新时，先修改 `package.json` 版本号，再在 GitHub 或 Gitee 创建同名 Tag 和 Release。
+当前源码版本 `v0.2.3` 对应 [CHANGELOG.md](CHANGELOG.md) 中的文件安全与多端导出修订记录。
 
 本版资料：
 
